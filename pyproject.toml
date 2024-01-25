@@ -1,0 +1,76 @@
+[tool.poetry]
+name = "monitor-server"
+version = "0.1.0"
+description = "A backend service for handling results from pytest-monitor"
+authors = ["Jean-Sebastien Dieu <dieu.jsebastien@yahoo.com>"]
+license = "MIT"
+readme = "README.md"
+exclude = ["monitor_server/tests/**"]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+alembic = "^1.13.1"
+sqlalchemy = "^2.0.25"
+pre-commit = "^3.6.0"
+mysqlclient = "^2.2.1"
+
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.1.14"
+mypy = "^1.8.0"
+pytest = "^7.4.4"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+extend-exclude = ["**/.ruff_cache"]
+line-length = 120
+target-version = "py311"
+unfixable = [
+    "F401"  # Disable fix for unused imports (`F401`).
+]
+ignore = [
+    "ANN101", # missing-type-self
+    "ANN102", # missing-type-cls
+    "ANN401", # Dynamicall types expressions (typing.Any) are disallowed
+    "ISC001", # single-line-implicit-string-concatenation
+    "N818", # Exception name should be suffixed with Error
+]
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+
+[tool.ruff.lint]
+select = [
+    "F", # Pyflakes
+    "E", "W", # Pycodestyle
+    "I",  # isort
+    "N",  # pep8-naming
+    "ANN",  # flake8-annotations
+    "ASYNC",  # flake8-async
+    "B",  # flake8-bugbear
+    "A",  # flake8-builtins
+    "C4",  # flake8-comprehensions
+    "DTZ",  # flake8-datetimez
+    "FA",  # flake8-future-annotations
+    "ISC",  # flake8-implicit-str-concat
+    "ICN",  # flake8-import-conventions
+    "G",  # flake8-logging-format
+    "INP",  # flake8-no-pep420
+    "PT",  # flake8-pytest-style
+    "RSE",  # flake8-raise
+    "RET",  # flake8-return
+    "SLF",  # flake8-self
+    "SLOT",  # flake8-slots
+    "SIM",  # flake8-simplify
+    "PTH",  # flake8-use-pathlib
+    "LOG",  # flake8-logging
+    "RUF",  # Ruff-specific rules
+]
+
+[tool.ruff.lint.per-file-ignores]
+"monitor_server/application/db/**" = ["INP"]
+"monitor_server/tests/**" = ["ANN201", "ANN001"]

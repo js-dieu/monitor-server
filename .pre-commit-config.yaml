@@ -1,0 +1,19 @@
+repos:
+  - repo: local
+    hooks:
+    - id: mypy
+      name: mypy
+      entry: poetry run mypy --install-types --non-interactive monitor_server
+      language: system
+      types: [python]
+      pass_filenames: false
+    - id: ruff
+      name: lint
+      entry: poetry run ruff check --preview
+      language: system
+      types: [python]
+    - id: ruff-format
+      name: format
+      entry: poetry run ruff format --preview
+      language: system
+      types: [python]

@@ -1,0 +1,92 @@
+# Database migration management
+
+This folder contains all the necessary update / downgrade steps to handle the different operation to apply to our
+database. We use alembic to assist us in generating the necessary DDL to apply. Please keep your code as generic as
+possible when dealing with SQL Types.
+
+⚠️ Do not use alembic directly. Use the `just` commands.
+
+More information about Alembic [here](https://alembic.sqlalchemy.org/en/latest/)
+
+## Naming Conventions
+We use the following naming conventions for naming constraints:
+* **index**: `ix_{column_0_label}_{column_1_label}...{column_n_label}`
+* **check**: `ck_{table_name}_{constraint_name}`
+* **unique**: `uq_{table_name}_{column_0_name}...{column_n_label}"`
+* **foreign key**: `fk_{table_name}_{column_name}_{referred_table_name}`
+* **primary key**: `pk_{table_name}`
+
+**These naming have helpers provided in the nomenclature module. It is strongly recommended to use them!**
+
+To provide some example:
+```mermaid
+---
+title: Naming convention examples
+---
+classDiagram
+    class A{
+        uuid: UUID
+        name: String
+    }
+    class B {
+        uuid: UUID
+        type: String
+    }
+    class AB{
+        a_name: UUID
+        b_type: UUID
+    }
+    AB ..> A
+    AB ..> B
+```
+
+| Constraint description                 | Implied Tables   | Final constraint name           |
+|----------------------------------------|------------------|---------------------------------|
+| An index on A.name                     | A                | `ix_name`                       |
+| Ensure uniqueness on B.type            | B                | `uq_B.type`                     |
+| Foreign Key on A uuid                  | A, AB            | `fk_AB_a_name_User`             |
+| Primary Key on B uuid                  | B                | `pk_B`                          |
+| Ensure b_type is more than 1 char long | B                | `ck_B_type_with_at_least_2char` |
+
+
+## Important words for versioning
+We will not support downgrade operation. The preferred way is to always go up. This brings in some advantages:
+* A rollback translates in an upgrade. 
+* No need to separate and organize commits (revert means remove references in the code first and then from the DB)
+* Easier to test and maintain 
+
+
+## Commands
+### Setting up the database from an empty image
+When you are running a fresh database server without tables nor views, it is time to create tables.
+Doing so is never done with vendor's tool as this will break our "be generic" need. 
+
+In the project's justfile, we have the ability to run the following command to perform all the necessary migrations 
+steps to apply in order to align the database with the code:
+```bash
+$> # This command applies all migrations steps
+$> just db-migrate
+```
+
+### Adding a new migration steps
+If you need to add a new migration step, just run the following command:
+```bash
+$> just db-add-migration-step "a descriptive message"
+  Generating /home/.../monitor_server/application/db/versions/12083be9d088_a_descriptive_message.py ...  done
+```
+
+If you go in the versions folder and open the generated file, you will see 2 functions waiting for your 
+implementation. There you go!
+
+
+### Challenging the generated SQL code
+It is useful to challenge alembic to provide us the generated SQL code in order to:
+
+- check that alembic understands everything
+- see what instructions are issued for the migration
+- eventually validate that your instruction leads to a generation
+
+To ask for generation:
+```bash
+$> just db-test-migration
+```
