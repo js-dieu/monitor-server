@@ -9,7 +9,7 @@ from typing import Sequence
 
 from alembic import op
 import sqlalchemy.dialects.mysql as mysql
-import service_auth.alembic.migrations.nomenclature as naming
+import monitor_server.application.db.nomenclature as naming
 import sqlalchemy as sa
 ${imports if imports else ""}
 
