@@ -30,10 +30,21 @@ def _get_model(repository: t.Any) -> t.Type[ORMModel]:
 
 
 class RepositoryBase(ABC, t.Generic[Model]):
-    def __init__(self, session: Session) -> None:
-        self.session = session
+    def __init__(self) -> None:
         self.model = _get_model(self)  # type: ignore[assignment]
+
+
+class SQLRepository(RepositoryBase[Model]):
+    def __init__(self, session: Session) -> None:
+        super().__init__()
+        self.session = session
 
     @cached_property
     def primary_key(self) -> t.Tuple[str, ...]:
         return tuple(self.model.__table__.primary_key.columns.keys())  # type: ignore
+
+
+class InMemoryRepository(RepositoryBase[Model]):
+    def __init__(self) -> None:
+        super().__init__()
+        self._data: t.Dict[t.Any, Model] = {}

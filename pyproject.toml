@@ -75,3 +75,8 @@ select = [
 [tool.ruff.lint.per-file-ignores]
 "monitor_server/application/db/**" = ["INP"]
 "monitor_server/tests/**" = ["ANN201", "ANN001"]
+
+[tool.pytest.ini_options]
+markers = [
+    "int: Run tests marked as being Integration ones. These requires your services to be launched."
+]

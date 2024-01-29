@@ -127,7 +127,7 @@ serve:
 
 # Run unit test only
 unittest dirs=".":
-    @cd {{ TEST_DIRECTORY }} && poetry run pytest -vv -m ut {{ dirs }}
+    @cd {{ TEST_DIRECTORY }} && poetry run pytest -vv -m "not int" {{ dirs }}
 
 # Run integration test only. This launches required services if not running.
 inttest dirs=".": start-services db-migrate

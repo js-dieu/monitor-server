@@ -48,6 +48,7 @@ def repository(orm: ORMEngine):
         repo.truncate()
 
 
+@pytest.mark.int()
 class TestCustomTypes:
     def test_it_converts_a_datetime_object_to_a_utc_based_datetime(self, repository: BasicRepo):
         local_now = datetime(2023, 12, 4, 22, 14, 31, 123456, tzinfo=ZoneInfo('Europe/Paris'))
@@ -67,4 +68,4 @@ class TestCustomTypes:
 
 class TestORMModel:
     def test_it_reflects_the_table_name(self):
-        assert AUIDDateTimeModel.__tablename__ == 'AUIDateTimeModel'
+        assert AUIDDateTimeModel.__tablename__ == 'AUIDDateTimeModel'

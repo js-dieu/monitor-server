@@ -1,9 +1,11 @@
+import pytest
 from sqlalchemy import text
 
 from monitor_server.infrastructure.orm.config import ORMConfig
 from monitor_server.infrastructure.orm.engine import ORMEngine
 
 
+@pytest.mark.int()
 class TestORMEngine:
     def test_it_connects(self, orm_config: ORMConfig):
         my_orm = ORMEngine(orm_config)
