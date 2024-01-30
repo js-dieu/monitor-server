@@ -17,11 +17,23 @@ class TestAbstractRepository:
         class ATestRepository(RepositoryBase[MyTestModel]):
             """A dummy repository"""
 
+            def count(self) -> int:
+                return 0
+
+            def truncate(self) -> None:
+                return None
+
         assert ATestRepository().model == MyTestModel
 
     def test_it_fails_to_init_a_repository_without_model(self, orm):
         class ATestRepository(RepositoryBase):
             """A dummy repository"""
+
+            def count(self) -> int:
+                return 0
+
+            def truncate(self) -> None:
+                return None
 
         with pytest.raises(ORMInvalidMapping, match='no model found for repository ATestRepository'):
             ATestRepository()

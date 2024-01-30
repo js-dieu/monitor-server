@@ -1,9 +1,11 @@
+import abc
 import inspect
 import typing as t
 from abc import ABC
 from functools import cached_property
 
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import delete, distinct, func, select, tuple_
 
 from monitor_server.infrastructure.orm.declarative import ORMModel
 from monitor_server.infrastructure.orm.errors import ORMInvalidMapping
@@ -33,6 +35,14 @@ class RepositoryBase(ABC, t.Generic[Model]):
     def __init__(self) -> None:
         self.model = _get_model(self)  # type: ignore[assignment]
 
+    @abc.abstractmethod
+    def truncate(self) -> None:
+        """Remove all rows"""
+
+    @abc.abstractmethod
+    def count(self) -> int:
+        """Count how many rows are stored"""
+
 
 class SQLRepository(RepositoryBase[Model]):
     def __init__(self, session: Session) -> None:
@@ -43,8 +53,30 @@ class SQLRepository(RepositoryBase[Model]):
     def primary_key(self) -> t.Tuple[str, ...]:
         return tuple(self.model.__table__.primary_key.columns.keys())  # type: ignore
 
+    def count(self) -> int:
+        primary_key = tuple(getattr(self.model, a) for a in self.primary_key)
+        return (
+            self.session.execute(
+                select(self.model).with_only_columns(
+                    # Operand should contain 1 column(s) error in case of composite primary key
+                    func.count(distinct(tuple_(*primary_key))),
+                ),
+            )
+        ).scalar_one()
+
+    def truncate(self) -> None:
+        self.session.execute(delete(self.model))
+        self.session.commit()
+        self.session.close()
+
 
 class InMemoryRepository(RepositoryBase[Model]):
     def __init__(self) -> None:
         super().__init__()
         self._data: t.Dict[t.Any, Model] = {}
+
+    def count(self) -> int:
+        return len(self._data)
+
+    def truncate(self) -> None:
+        self._data = {}
