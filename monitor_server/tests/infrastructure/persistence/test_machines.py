@@ -1,7 +1,7 @@
 import pytest
 
 from monitor_server.domain.entities.machines import Machine
-from monitor_server.infrastructure.persistence.exceptions import MachineAlreadyExists, MachineNotFound
+from monitor_server.infrastructure.persistence.exceptions import EntityAlreadyExists, EntityNotFound
 from monitor_server.infrastructure.persistence.machines import (
     ExecutionContextInMemRepository,
     ExecutionContextSQLRepository,
@@ -26,7 +26,7 @@ class TestExecutionContextSQLRepository:
         )
         assert execution_context_sql_repo.create(xc)
 
-    def test_it_raises_machine_already_exists_when_creating_twice_the_same_uid(
+    def test_it_raises_entity_already_exists_when_creating_twice_the_same_uid(
         self, execution_context_sql_repo: ExecutionContextSQLRepository
     ):
         xc = Machine(
@@ -44,7 +44,7 @@ class TestExecutionContextSQLRepository:
         )
         execution_context_sql_repo.create(xc)
 
-        with pytest.raises(MachineAlreadyExists, match='abcd'):
+        with pytest.raises(EntityAlreadyExists, match='abcd'):
             execution_context_sql_repo.create(xc)
 
     def test_it_returns_a_machine_when_querying_a_known_uid(
@@ -66,10 +66,10 @@ class TestExecutionContextSQLRepository:
         execution_context_sql_repo.create(xc)
         assert execution_context_sql_repo.get('abcd').uid == 'abcd'
 
-    def test_it_returns_none_when_querying_an_unknown_context(
+    def test_it_raises_entity_not_found_when_querying_an_unknown_context(
         self, execution_context_sql_repo: ExecutionContextSQLRepository
     ):
-        with pytest.raises(MachineNotFound, match='unknown'):
+        with pytest.raises(EntityNotFound, match='unknown'):
             execution_context_sql_repo.get('unknown')
 
     def test_an_empty_repository_counts_0_elements(self, execution_context_sql_repo: ExecutionContextSQLRepository):
@@ -116,10 +116,10 @@ class TestExecutionContextInMemRepository:
         )
         assert execution_context_sql_repo.create(xc)
 
-    def test_it_returns_none_when_querying_an_unknown_context(
+    def test_it_raises_entity_not_found_when_querying_an_unknown_context(
         self, execution_context_sql_repo: ExecutionContextInMemRepository
     ):
-        with pytest.raises(MachineNotFound, match='unknown'):
+        with pytest.raises(EntityNotFound, match='unknown'):
             execution_context_sql_repo.get('unknown')
 
     def test_it_counts_0_when_the_repository_is_empty(

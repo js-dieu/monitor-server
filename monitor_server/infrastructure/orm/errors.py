@@ -1,4 +1,7 @@
-class ORMError(Exception):
+from monitor_server.infrastructure.exceptions import InfrastructureError
+
+
+class ORMError(InfrastructureError):
     """Base class for orm related exceptions (apart from SQLAlchemy"""
 
 

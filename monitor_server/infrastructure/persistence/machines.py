@@ -7,8 +7,9 @@ from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from monitor_server.domain.entities.machines import Machine
 from monitor_server.infrastructure.orm.declarative import ORMModel
+from monitor_server.infrastructure.orm.errors import ORMError
 from monitor_server.infrastructure.orm.repositories import InMemoryRepository, SQLRepository
-from monitor_server.infrastructure.persistence.exceptions import MachineAlreadyExists, MachineError, MachineNotFound
+from monitor_server.infrastructure.persistence.exceptions import EntityAlreadyExists, EntityNotFound
 
 
 class ExecutionContext(ORMModel):
@@ -93,9 +94,9 @@ class ExecutionContextSQLRepository(ExecutionContextRepository, SQLRepository[Ex
             self.session.execute(stmt)
             self.session.commit()
         except IntegrityError as e:
-            raise MachineAlreadyExists(machine.footprint) from e
+            raise EntityAlreadyExists(machine.footprint) from e
         except SQLAlchemyError as e:
-            raise MachineError(str(e)) from e
+            raise ORMError(str(e)) from e
         return machine
 
     def update(self, machine: Machine) -> Machine:
@@ -120,7 +121,7 @@ class ExecutionContextSQLRepository(ExecutionContextRepository, SQLRepository[Ex
             self.session.execute(stmt)
             self.session.commit()
         except SQLAlchemyError as e:
-            raise MachineError(str(e)) from e
+            raise ORMError(str(e)) from e
         return machine
 
     def get(self, uid: str) -> Machine:
@@ -128,7 +129,7 @@ class ExecutionContextSQLRepository(ExecutionContextRepository, SQLRepository[Ex
         row = self.session.execute(stmt).fetchone()
         if row is not None:
             return self.build_entity_from(row[0])
-        raise MachineNotFound(uid)
+        raise EntityNotFound(uid)
 
 
 class ExecutionContextInMemRepository(ExecutionContextRepository, InMemoryRepository[ExecutionContext]):
@@ -137,21 +138,20 @@ class ExecutionContextInMemRepository(ExecutionContextRepository, InMemoryReposi
 
     def create(self, machine: Machine) -> Machine:
         if machine.footprint in self._data:
-            raise MachineAlreadyExists(machine.footprint)
+            raise EntityAlreadyExists(machine.footprint)
         self._data[machine.footprint] = t.cast(ExecutionContext, self.model).from_dict(machine.as_dict())
         return machine
 
     def update(self, machine: Machine) -> Machine:
-        try:
-            self._data[machine.footprint] = t.cast(ExecutionContext, self.model).from_dict(machine.as_dict())
-        except KeyError as e:
-            raise MachineError(e) from e
+        if machine.footprint not in self._data:
+            raise EntityNotFound(machine.footprint)
+        self._data[machine.footprint] = t.cast(ExecutionContext, self.model).from_dict(machine.as_dict())
         return machine
 
     def get(self, uid: str) -> Machine:
         row = self._data.get(uid)
         if not row:
-            raise MachineNotFound(uid)
+            raise EntityNotFound(uid)
         return Machine(
             uid=row.uid,
             cpu_frequency=row.cpu_frequency,
