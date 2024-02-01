@@ -78,7 +78,13 @@ logs CONTAINER:
     @docker logs {{ CONTAINER }} --follow
 
 # Stop services
-stop-services:
+stop-services method:
+    @if [ "{{ method }}" != "keep" -a "{{ method }}" != "remove" ]; then \
+      echo "Invalid value given for parameter 'method'."; \
+      echo "Got '{{ method }}', expected 'keep' or 'remove'."; \
+      false; \
+    fi
+    @docker compose {{ if method == "keep" { "stop" } else { "down" } }}
     @docker compose stop
 
 # Create a new database migration steps
