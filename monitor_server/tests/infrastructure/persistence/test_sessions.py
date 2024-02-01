@@ -2,7 +2,7 @@ import datetime
 
 import pytest
 
-from monitor_server.domain.entities.sessions import Session as SessionEntity
+from monitor_server.domain.entities.sessions import MonitorSession
 from monitor_server.infrastructure.persistence.exceptions import EntityAlreadyExists, EntityNotFound
 from monitor_server.infrastructure.persistence.sessions import SessionInMemRepository, SessionSQLRepository
 
@@ -10,7 +10,7 @@ from monitor_server.infrastructure.persistence.sessions import SessionInMemRepos
 @pytest.mark.int()
 class TestSessionSQLRepository:
     def setup_method(self):
-        self.a_test_session = SessionEntity(
+        self.a_test_session = MonitorSession(
             uid='abcd',
             scm_revision='scm_revision',
             start_date=datetime.datetime(2024, 1, 31, 18, 24, 54, 123456, tzinfo=datetime.UTC),
@@ -44,7 +44,7 @@ class TestSessionSQLRepository:
 
 class TestSessionInMemoryRepository:
     def setup_method(self):
-        self.a_test_session = SessionEntity(
+        self.a_test_session = MonitorSession(
             uid='abcd',
             scm_revision='scm_revision',
             start_date=datetime.datetime(2024, 1, 31, 18, 24, 54, 123456, tzinfo=datetime.UTC),

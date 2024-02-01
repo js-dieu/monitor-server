@@ -6,7 +6,7 @@ from functools import cached_property
 from monitor_server.domain.entities.abc import Entity
 
 
-class Session(Entity):
+class MonitorSession(Entity):
     uid: str
     start_date: datetime.datetime
     scm_revision: str
@@ -23,8 +23,8 @@ class Session(Entity):
         return hr.hexdigest()
 
     def __eq__(self, other: object) -> bool:
-        if type(other) is Session:
-            other_session = t.cast(Session, other)
+        if type(other) is MonitorSession:
+            other_session = t.cast(MonitorSession, other)
             return (
                 self.uid == other_session.uid
                 and self.start_date == other_session.start_date

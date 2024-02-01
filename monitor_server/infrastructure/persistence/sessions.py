@@ -9,7 +9,7 @@ from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import insert, select, update
 
-from monitor_server.domain.entities.sessions import Session as SessionEntity
+from monitor_server.domain.entities.sessions import MonitorSession
 from monitor_server.infrastructure.orm.declarative import ORMModel
 from monitor_server.infrastructure.orm.errors import ORMError
 from monitor_server.infrastructure.orm.repositories import InMemoryRepository, SQLRepository
@@ -25,26 +25,26 @@ class Session(ORMModel):
 
 class SessionRepository:
     @classmethod
-    def build_entity_from(cls, model: Session) -> SessionEntity:
-        return SessionEntity(
+    def build_entity_from(cls, model: Session) -> MonitorSession:
+        return MonitorSession(
             uid=model.uid, start_date=model.run_date, scm_revision=model.scm_id, tags=model.description
         )
 
     @abc.abstractmethod
-    def create(self, item: SessionEntity) -> SessionEntity:
+    def create(self, item: MonitorSession) -> MonitorSession:
         """Persist a new session"""
 
     @abc.abstractmethod
-    def update(self, machine: SessionEntity) -> SessionEntity:
+    def update(self, machine: MonitorSession) -> MonitorSession:
         """Update an existing session"""
 
     @abc.abstractmethod
-    def get(self, uid: str) -> SessionEntity:
+    def get(self, uid: str) -> MonitorSession:
         """Get a session given an uid"""
 
 
 class SessionSQLRepository(SessionRepository, SQLRepository[Session]):
-    def create(self, item: SessionEntity) -> SessionEntity:
+    def create(self, item: MonitorSession) -> MonitorSession:
         stmt = insert(Session).values(
             uid=item.uid, description=item.tags, run_date=item.start_date, scm_id=item.scm_revision
         )
@@ -57,7 +57,7 @@ class SessionSQLRepository(SessionRepository, SQLRepository[Session]):
             raise ORMError(str(e)) from e
         return item
 
-    def update(self, item: SessionEntity) -> SessionEntity:
+    def update(self, item: MonitorSession) -> MonitorSession:
         stmt = (
             update(Session)
             .where(Session.uid == item.uid)
@@ -70,7 +70,7 @@ class SessionSQLRepository(SessionRepository, SQLRepository[Session]):
             raise ORMError(str(e)) from e
         return item
 
-    def get(self, uid: str) -> SessionEntity:
+    def get(self, uid: str) -> MonitorSession:
         stmt = select(Session).where(Session.uid == uid)
         row = self.session.execute(stmt).fetchone()
         if row is not None:
@@ -79,14 +79,14 @@ class SessionSQLRepository(SessionRepository, SQLRepository[Session]):
 
 
 class SessionInMemRepository(SessionRepository, InMemoryRepository[Session]):
-    def get(self, uid: str) -> SessionEntity:
+    def get(self, uid: str) -> MonitorSession:
         row = self._data.get(uid)
         if row is None:
             raise EntityNotFound(uid)
 
-        return SessionEntity(uid=row.uid, scm_revision=row.scm_id, start_date=row.run_date, tags=row.description)
+        return MonitorSession(uid=row.uid, scm_revision=row.scm_id, start_date=row.run_date, tags=row.description)
 
-    def create(self, item: SessionEntity) -> SessionEntity:
+    def create(self, item: MonitorSession) -> MonitorSession:
         if item.uid in self._data:
             raise EntityAlreadyExists(item.uid)
         self._data[item.uid] = Session(
@@ -94,7 +94,7 @@ class SessionInMemRepository(SessionRepository, InMemoryRepository[Session]):
         )
         return item
 
-    def update(self, item: SessionEntity) -> SessionEntity:
+    def update(self, item: MonitorSession) -> MonitorSession:
         if item.uid not in self._data:
             raise EntityNotFound(item.uid)
         self._data[item.uid] = Session(
