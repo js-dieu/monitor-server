@@ -1,6 +1,8 @@
 import typing as t
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+Attribute = Field
 
 
 class Entity(BaseModel):
