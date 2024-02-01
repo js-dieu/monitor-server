@@ -6,6 +6,10 @@ from monitor_server.infrastructure.persistence.machines import (
     ExecutionContextInMemRepository,
     ExecutionContextSQLRepository,
 )
+from monitor_server.infrastructure.persistence.sessions import (
+    SessionInMemRepository,
+    SessionSQLRepository,
+)
 
 
 @pytest.fixture(scope='session')
@@ -37,5 +41,19 @@ def execution_context_sql_repo(orm: ORMEngine):
 @pytest.fixture()
 def execution_context_in_mem_repo():
     repo = ExecutionContextInMemRepository()
+    yield repo
+    repo.truncate()
+
+
+@pytest.fixture()
+def session_sql_repo(orm: ORMEngine):
+    repo = SessionSQLRepository(orm.session)
+    yield repo
+    repo.truncate()
+
+
+@pytest.fixture()
+def session_in_mem_repo():
+    repo = SessionInMemRepository()
     yield repo
     repo.truncate()
