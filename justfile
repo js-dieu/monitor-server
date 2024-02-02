@@ -141,7 +141,7 @@ inttest dirs=".": start-services db-migrate
 
 # Run all tests. This launches required services if not running.
 test dirs=".": start-services db-migrate
-    @cd {{ TEST_DIRECTORY }} && poetry run pytest -vv {{ dirs }}
+    @cd {{ TEST_DIRECTORY }} && poetry run pytest -vvx {{ dirs }}
 
 # Run all tests with coverage. Default coverage report is html
 coverage report_type="html": start-services
