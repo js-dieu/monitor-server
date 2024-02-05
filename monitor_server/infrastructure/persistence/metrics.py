@@ -72,7 +72,7 @@ class MetricRepository:
         """Update an existing session"""
 
     @abc.abstractmethod
-    def get(self, uid: UUID) -> Metric:
+    def get(self, uid: str) -> Metric:
         """Get a session given an uid"""
 
 
@@ -138,19 +138,19 @@ class MetricSQLRepository(MetricRepository, SQLRepository[TestMetric]):
             raise ORMError(str(e)) from e
         return item
 
-    def get(self, uid: UUID) -> Metric:
+    def get(self, uid: str) -> Metric:
         stmt = select(TestMetric).where(TestMetric.uid == uid)
         row = self.session.execute(stmt).fetchone()
         if row is not None:
             return self.build_entity_from(row[0])
-        raise EntityNotFound(uid.hex)
+        raise EntityNotFound(uid)
 
 
 class MetricInMemRepository(MetricRepository, InMemoryRepository[TestMetric]):
-    def get(self, uid: UUID) -> Metric:
-        row = self._data.get(uid.hex)
+    def get(self, uid: str) -> Metric:
+        row = self._data.get(uid)
         if row is None:
-            raise EntityNotFound(uid.hex)
+            raise EntityNotFound(uid)
 
         return self.build_entity_from(row)
 

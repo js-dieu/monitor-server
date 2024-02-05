@@ -109,7 +109,7 @@ class TestMetricSQLRepository:
     ):
         an_id = uuid.uuid4()
         with pytest.raises(EntityNotFound, match=an_id.hex):
-            metrics_service.metric.get(an_id)
+            metrics_service.metric.get(an_id.hex)
 
     def test_an_empty_repository_counts_0_elements(
         self,
@@ -194,7 +194,7 @@ class TestMetricInMemRepository:
         metric_in_mem_repo: MetricInMemRepository,
     ):
         metric_in_mem_repo.create(self.a_metric)
-        assert metric_in_mem_repo.get(self.a_metric.uid) == self.a_metric
+        assert metric_in_mem_repo.get(self.a_metric.uid.hex) == self.a_metric
 
     def test_it_raises_entity_not_found_when_querying_an_unknown_context(
         self,
@@ -202,7 +202,7 @@ class TestMetricInMemRepository:
     ):
         an_id = uuid.uuid4()
         with pytest.raises(EntityNotFound, match=an_id.hex):
-            metric_in_mem_repo.get(an_id)
+            metric_in_mem_repo.get(an_id.hex)
 
     def test_an_empty_repository_counts_0_elements(
         self,
