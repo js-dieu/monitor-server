@@ -28,7 +28,7 @@ class BasicRepo:
             )
         )
 
-    def get(self, uid: UUID) -> AUIDDateTimeModel | None:
+    def get(self, uid: UUID | str) -> AUIDDateTimeModel | None:
         return self.session.get(AUIDDateTimeModel, uid)
 
     def save(self, item: AUIDDateTimeModel) -> None:
@@ -59,6 +59,13 @@ class TestCustomTypes:
         model = AUIDDateTimeModel(created_at=local_now, an_id=unique_id)
         repository.save(model)
         assert repository.get(unique_id) == model
+
+    def test_it_can_find_a_row_from_uid_as_str(self, repository: BasicRepo):
+        local_now = datetime(2023, 12, 4, 22, 14, 31, 123456, tzinfo=ZoneInfo('Europe/Paris'))
+        unique_id = uuid4()
+        model = AUIDDateTimeModel(created_at=local_now, an_id=unique_id)
+        repository.save(model)
+        assert repository.get(unique_id.hex) == model
 
     def test_it_converts_a_datetime_object_to_a_utc_based_datetime(self, repository: BasicRepo):
         local_now = datetime(2023, 12, 4, 22, 14, 31, 123456, tzinfo=ZoneInfo('Europe/Paris'))

@@ -40,10 +40,10 @@ class GUID(TypeDecorator):
             return dialect.type_descriptor(UUID())
         return dialect.type_descriptor(self._default_type)
 
-    def process_bind_param(self, value: uuid.UUID | None, dialect: Any) -> str | None:
+    def process_bind_param(self, value: uuid.UUID | str | None, dialect: Any) -> str | None:
         if value is None:
             return value
-        return value.hex
+        return value if isinstance(value, str) else value.hex
 
     def process_result_value(self, value: str | None, dialect: Any) -> uuid.UUID | None:
         if value is None:
