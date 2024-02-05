@@ -1,5 +1,6 @@
 import abc
 import pathlib
+import typing as t
 from datetime import datetime
 from uuid import UUID
 
@@ -12,7 +13,11 @@ from monitor_server.domain.entities.metrics import Metric
 from monitor_server.infrastructure.orm.declarative import ORMModel
 from monitor_server.infrastructure.orm.errors import ORMError
 from monitor_server.infrastructure.orm.repositories import InMemoryRepository, SQLRepository
-from monitor_server.infrastructure.persistence.exceptions import EntityAlreadyExists, EntityNotFound
+from monitor_server.infrastructure.persistence.exceptions import (
+    EntityAlreadyExists,
+    EntityNotFound,
+    LinkedEntityMissing,
+)
 from monitor_server.infrastructure.persistence.machines import ExecutionContext
 from monitor_server.infrastructure.persistence.sessions import Session
 
@@ -94,7 +99,15 @@ class MetricSQLRepository(MetricRepository, SQLRepository[TestMetric]):
             self.session.execute(stmt)
             self.session.commit()
         except IntegrityError as e:
-            raise EntityAlreadyExists(item.uid.hex) from e
+            x_cls: t.Type[ORMError] = EntityAlreadyExists
+            msg = item.uid.hex
+            if e.orig.args[0] == 1452 and 'Session' in e.orig.args[1]:  # type: ignore[union-attr]
+                x_cls = LinkedEntityMissing
+                msg = f'Session {item.session_id} cannot be found.' f' Metric {item.uid.hex} cannot be inserted'
+            elif e.orig.args[0] == 1452 and 'Session' not in e.orig.args[1]:  # type: ignore[union-attr]
+                x_cls = LinkedEntityMissing
+                msg = f'Execution Context {item.node_id} cannot be found.' f' Metric {item.uid.hex} cannot be inserted'
+            raise x_cls(msg) from e
         except SQLAlchemyError as e:
             raise ORMError(str(e)) from e
         return item

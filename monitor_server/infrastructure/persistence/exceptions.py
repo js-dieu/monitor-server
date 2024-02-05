@@ -7,3 +7,7 @@ class EntityAlreadyExists(ORMError):
 
 class EntityNotFound(ORMError):
     """Raised when querying a machine whose uid cannot be found."""
+
+
+class LinkedEntityMissing(ORMError):
+    """Raised when an entity linked to other entities"""

@@ -8,7 +8,11 @@ import pytest
 from monitor_server.domain.entities.machines import Machine
 from monitor_server.domain.entities.metrics import Metric
 from monitor_server.domain.entities.sessions import MonitorSession
-from monitor_server.infrastructure.persistence.exceptions import EntityAlreadyExists, EntityNotFound
+from monitor_server.infrastructure.persistence.exceptions import (
+    EntityAlreadyExists,
+    EntityNotFound,
+    LinkedEntityMissing,
+)
 from monitor_server.infrastructure.persistence.metrics import (
     MetricInMemRepository,
 )
@@ -64,11 +68,20 @@ class TestMetricSQLRepository:
         metrics_service.execution_contexts.create(self.a_machine)
         assert metrics_service.metric.create(self.a_metric)
 
-    def test_it_raises_missing_entity_when_creating_a_metric_on_an_unknown_session(self):
-        pass
+    def test_it_raises_missing_entity_when_creating_a_metric_on_an_unknown_session(self, metrics_service):
+        metrics_service.execution_contexts.create(self.a_machine)
+        msg = f'Session {self.a_session.uid} cannot be found. Metric {self.a_metric.uid.hex} cannot be inserted'
+        with pytest.raises(LinkedEntityMissing, match=msg):
+            metrics_service.metric.create(self.a_metric)
 
-    def test_it_raises_missing_entity_when_creating_a_metric_on_an_unknown_machine(self):
-        pass
+    def test_it_raises_missing_entity_when_creating_a_metric_on_an_unknown_machine(self, metrics_service):
+        metrics_service.session.create(self.a_session)
+        msg = (
+            f'Execution Context {self.a_machine.uid} cannot be found.'
+            f' Metric {self.a_metric.uid.hex} cannot be inserted'
+        )
+        with pytest.raises(LinkedEntityMissing, match=msg):
+            metrics_service.metric.create(self.a_metric)
 
     def test_it_raises_entity_already_exists_when_creating_twice_the_same_uid(
         self,
@@ -166,12 +179,6 @@ class TestMetricInMemRepository:
         metric_in_mem_repo: MetricInMemRepository,
     ):
         assert metric_in_mem_repo.create(self.a_metric)
-
-    def test_it_raises_missing_entity_when_creating_a_metric_on_an_unknown_session(self):
-        pass
-
-    def test_it_raises_missing_entity_when_creating_a_metric_on_an_unknown_machine(self):
-        pass
 
     def test_it_raises_entity_already_exists_when_creating_twice_the_same_uid(
         self,
