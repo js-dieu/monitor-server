@@ -13,9 +13,8 @@ from monitor_server.infrastructure.persistence.exceptions import (
     EntityNotFound,
     LinkedEntityMissing,
 )
-from monitor_server.infrastructure.persistence.metrics import (
-    MetricInMemRepository,
-)
+from monitor_server.infrastructure.persistence.metrics import MetricInMemRepository, MetricSQLRepository
+from monitor_server.infrastructure.persistence.services import MonitoringMetricsService
 
 
 @pytest.mark.int()
@@ -61,76 +60,75 @@ class TestMetricSQLRepository:
         )
 
     def test_it_creates_a_new_metric_from_unknown_uid(
-        self,
-        metrics_service,
+        self, metrics_sql_service: MonitoringMetricsService, metric_sql_repo: MetricSQLRepository
     ):
-        metrics_service.session.create(self.a_session)
-        metrics_service.execution_contexts.create(self.a_machine)
-        assert metrics_service.metric.create(self.a_metric)
+        metrics_sql_service.add_machine(self.a_machine)
+        metrics_sql_service.add_session(self.a_session)
+        metric_sql_repo.create(self.a_metric)
+        assert metric_sql_repo.get(self.a_metric.uid.hex)
 
-    def test_it_raises_missing_entity_when_creating_a_metric_on_an_unknown_session(self, metrics_service):
-        metrics_service.execution_contexts.create(self.a_machine)
+    def test_create_a_metric_raises_linked_entity_missing_if_session_is_unknown(
+        self, metrics_sql_service: MonitoringMetricsService, metric_sql_repo: MetricSQLRepository
+    ):
+        metrics_sql_service.add_machine(self.a_machine)
         msg = f'Session {self.a_session.uid} cannot be found. Metric {self.a_metric.uid.hex} cannot be inserted'
         with pytest.raises(LinkedEntityMissing, match=msg):
-            metrics_service.metric.create(self.a_metric)
+            metric_sql_repo.create(self.a_metric)
 
-    def test_it_raises_missing_entity_when_creating_a_metric_on_an_unknown_machine(self, metrics_service):
-        metrics_service.session.create(self.a_session)
+    def test_create_a_metric_raises_linked_entity_missing_if_machine_is_unknown(
+        self, metrics_sql_service: MonitoringMetricsService, metric_sql_repo: MetricSQLRepository
+    ):
+        metrics_sql_service.add_session(self.a_session)
         msg = (
             f'Execution Context {self.a_machine.uid} cannot be found.'
             f' Metric {self.a_metric.uid.hex} cannot be inserted'
         )
         with pytest.raises(LinkedEntityMissing, match=msg):
-            metrics_service.metric.create(self.a_metric)
+            metric_sql_repo.create(self.a_metric)
 
     def test_it_raises_entity_already_exists_when_creating_twice_the_same_uid(
-        self,
-        metrics_service,
+        self, metrics_sql_service: MonitoringMetricsService, metric_sql_repo: MetricSQLRepository
     ):
-        metrics_service.session.create(self.a_session)
-        metrics_service.execution_contexts.create(self.a_machine)
-        metrics_service.metric.create(self.a_metric)
+        metrics_sql_service.add_session(self.a_session)
+        metrics_sql_service.add_machine(self.a_machine)
+        metric_sql_repo.create(self.a_metric)
 
         with pytest.raises(EntityAlreadyExists, match=self.a_metric.uid.hex):
-            metrics_service.metric.create(self.a_metric)
+            metric_sql_repo.create(self.a_metric)
 
     def test_it_returns_a_metric_when_querying_a_known_uid(
         self,
-        metrics_service,
+        metrics_sql_service: MonitoringMetricsService,
+        metric_sql_repo: MetricSQLRepository,
     ):
-        metrics_service.session.create(self.a_session)
-        metrics_service.execution_contexts.create(self.a_machine)
-        metrics_service.metric.create(self.a_metric)
-        assert metrics_service.metric.get(self.a_metric.uid) == self.a_metric
+        metrics_sql_service.add_session(self.a_session)
+        metrics_sql_service.add_machine(self.a_machine)
+        metric_sql_repo.create(self.a_metric)
+        assert metric_sql_repo.get(self.a_metric.uid.hex) == self.a_metric
 
-    def test_it_raises_entity_not_found_when_querying_an_unknown_context(
-        self,
-        metrics_service,
-    ):
+    def test_it_raises_entity_not_found_when_querying_an_unknown_metric(self, metric_sql_repo: MetricSQLRepository):
         an_id = uuid.uuid4()
         with pytest.raises(EntityNotFound, match=an_id.hex):
-            metrics_service.metric.get(an_id.hex)
+            metric_sql_repo.get(an_id.hex)
 
-    def test_an_empty_repository_counts_0_elements(
-        self,
-        metrics_service,
-    ):
-        assert metrics_service.metric.count() == 0
+    def test_an_empty_repository_counts_0_elements(self, metric_sql_repo: MetricSQLRepository):
+        assert metric_sql_repo.count() == 0
 
     def test_a_repository_having_3_elements_counts_3(
         self,
-        metrics_service,
+        metrics_sql_service: MonitoringMetricsService,
+        metric_sql_repo: MetricSQLRepository,
     ):
-        metrics_service.session.create(self.a_session)
-        metrics_service.execution_contexts.create(self.a_machine)
+        metrics_sql_service.add_session(self.a_session)
+        metrics_sql_service.add_machine(self.a_machine)
         for i in range(3):
             metric_data = self.a_metric.as_dict()
             metric_data['uid'] = uuid.uuid4()
             metric_data['variant'] = f'item[{i + 1}]'
             metric_data['item_start_time'] = self.session_time + datetime.timedelta(seconds=i)
-            a_metric = Metric.from_dict(metric_data)
-            metrics_service.metric.create(a_metric)
-        assert metrics_service.metric.count() == 3
+            a_metric = t.cast(Metric, Metric.from_dict(metric_data))
+            metric_sql_repo.create(a_metric)
+        assert metric_sql_repo.count() == 3
 
 
 class TestMetricInMemRepository:
@@ -196,7 +194,7 @@ class TestMetricInMemRepository:
         metric_in_mem_repo.create(self.a_metric)
         assert metric_in_mem_repo.get(self.a_metric.uid.hex) == self.a_metric
 
-    def test_it_raises_entity_not_found_when_querying_an_unknown_context(
+    def test_it_raises_entity_not_found_when_querying_an_unknown_metric(
         self,
         metric_in_mem_repo: MetricInMemRepository,
     ):

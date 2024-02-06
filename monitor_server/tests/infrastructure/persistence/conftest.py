@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+import typing as t
 
 import pytest
 
@@ -9,6 +9,11 @@ from monitor_server.infrastructure.persistence.machines import (
     ExecutionContextSQLRepository,
 )
 from monitor_server.infrastructure.persistence.metrics import MetricInMemRepository, MetricSQLRepository
+from monitor_server.infrastructure.persistence.services import (
+    MonitoringMetricsInMemService,
+    MonitoringMetricsService,
+    MonitoringMetricsSQLService,
+)
 from monitor_server.infrastructure.persistence.sessions import (
     SessionInMemRepository,
     SessionSQLRepository,
@@ -76,22 +81,15 @@ def metric_in_mem_repo():
     repo.truncate()
 
 
-@dataclass(init=True)
-class MetricService:
-    session: SessionSQLRepository
-    execution_contexts: ExecutionContextSQLRepository
-    metric: MetricSQLRepository
+@pytest.fixture()
+def metrics_sql_service(orm: ORMEngine) -> t.Generator[MonitoringMetricsService, None, None]:
+    service = MonitoringMetricsSQLService(orm)
+    yield service
+    service.truncate_all()
 
 
 @pytest.fixture()
-def metrics_service(orm: ORMEngine):
-    session = orm.session
-    service = MetricService(
-        session=SessionSQLRepository(session),
-        execution_contexts=ExecutionContextSQLRepository(session),
-        metric=MetricSQLRepository(session),
-    )
+def metrics_in_mem_service(orm: ORMEngine) -> t.Generator[MonitoringMetricsService, None, None]:
+    service = MonitoringMetricsInMemService()
     yield service
-    service.execution_contexts.truncate()
-    service.session.truncate()
-    service.metric.truncate()
+    service.truncate_all()
