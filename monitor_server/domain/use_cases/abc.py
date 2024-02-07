@@ -15,7 +15,10 @@ class UseCaseResult(t.Generic[OUTPUT]):
     msg: str | None = None
 
 
+RESULT: t.TypeAlias = UseCaseResult[OUTPUT]
+
+
 class UseCase(t.Generic[INPUT, OUTPUT], abc.ABC):
     @abc.abstractmethod
-    def execute(self, input_dto: INPUT) -> UseCaseResult[OUTPUT]:
+    def execute(self, input_dto: INPUT) -> RESULT:
         """Implements the business logic"""
