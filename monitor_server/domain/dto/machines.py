@@ -15,5 +15,5 @@ class CreateMachine(DTO):
     python_info: str
 
 
-class NewMachine(DTO):
+class NewMachineCreated(DTO):
     uid: str | None = None
