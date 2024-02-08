@@ -9,7 +9,10 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import insert, select, update
 
+from monitor_server.domain.entities.abc import Entity
+from monitor_server.domain.entities.machines import Machine
 from monitor_server.domain.entities.metrics import Metric
+from monitor_server.domain.entities.sessions import MonitorSession
 from monitor_server.infrastructure.orm.declarative import ORMModel
 from monitor_server.infrastructure.orm.errors import ORMError
 from monitor_server.infrastructure.orm.repositories import InMemoryRepository, SQLRepository
@@ -101,13 +104,17 @@ class MetricSQLRepository(MetricRepository, SQLRepository[TestMetric]):
         except IntegrityError as e:
             x_cls: t.Type[ORMError] = EntityAlreadyExists
             msg = item.uid.hex
+            etype: t.Type[Entity] = Metric
+            elinked = ''
             if e.orig.args[0] == 1452 and 'Session' in e.orig.args[1]:  # type: ignore[union-attr]
                 x_cls = LinkedEntityMissing
                 msg = f'Session {item.session_id} cannot be found.' f' Metric {item.uid.hex} cannot be inserted'
+                etype, elinked = MonitorSession, item.session_id
             elif e.orig.args[0] == 1452 and 'Session' not in e.orig.args[1]:  # type: ignore[union-attr]
                 x_cls = LinkedEntityMissing
                 msg = f'Execution Context {item.node_id} cannot be found.' f' Metric {item.uid.hex} cannot be inserted'
-            raise x_cls(msg) from e
+                etype, elinked = Machine, item.node_id
+            raise x_cls(msg, etype, elinked) from e
         except SQLAlchemyError as e:
             raise ORMError(str(e)) from e
         return item
@@ -143,20 +150,20 @@ class MetricSQLRepository(MetricRepository, SQLRepository[TestMetric]):
         row = self.session.execute(stmt).fetchone()
         if row is not None:
             return self.build_entity_from(row[0])
-        raise EntityNotFound(uid)
+        raise EntityNotFound(f'Metric "{uid}" cannot be found', Metric, uid)
 
 
 class MetricInMemRepository(MetricRepository, InMemoryRepository[TestMetric]):
     def get(self, uid: str) -> Metric:
         row = self._data.get(uid)
         if row is None:
-            raise EntityNotFound(uid)
+            raise EntityNotFound(f'Metric "{uid}" cannot be found', Metric, uid)
 
         return self.build_entity_from(row)
 
     def create(self, item: Metric) -> Metric:
         if item.uid.hex in self._data:
-            raise EntityAlreadyExists(item.uid.hex)
+            raise EntityAlreadyExists(f'Metric "{item.uid.hex} already exists', Metric, item.uid.hex)
         self._data[item.uid.hex] = TestMetric(
             uid=item.uid,
             sid=item.session_id,
@@ -178,7 +185,7 @@ class MetricInMemRepository(MetricRepository, InMemoryRepository[TestMetric]):
 
     def update(self, item: Metric) -> Metric:
         if item.uid.hex not in self._data:
-            raise EntityNotFound(item.uid.hex)
+            raise EntityNotFound(f'Metric "{item.uid.hex}" cannot be found', Metric, item.uid.hex)
         self._data[item.uid.hex] = TestMetric(
             uid=item.uid,
             sid=item.session_id,

@@ -94,7 +94,9 @@ class ExecutionContextSQLRepository(ExecutionContextRepository, SQLRepository[Ex
             self.session.execute(stmt)
             self.session.commit()
         except IntegrityError as e:
-            raise EntityAlreadyExists(machine.footprint) from e
+            raise EntityAlreadyExists(
+                f'Machine "{machine.footprint}" already exists', Machine, machine.footprint
+            ) from e
         except SQLAlchemyError as e:
             raise ORMError(str(e)) from e
         return machine
@@ -129,7 +131,7 @@ class ExecutionContextSQLRepository(ExecutionContextRepository, SQLRepository[Ex
         row = self.session.execute(stmt).fetchone()
         if row is not None:
             return self.build_entity_from(row[0])
-        raise EntityNotFound(uid)
+        raise EntityNotFound(f'Machine {uid} cannot be found', Machine, uid)
 
 
 class ExecutionContextInMemRepository(ExecutionContextRepository, InMemoryRepository[ExecutionContext]):
@@ -138,20 +140,20 @@ class ExecutionContextInMemRepository(ExecutionContextRepository, InMemoryReposi
 
     def create(self, machine: Machine) -> Machine:
         if machine.footprint in self._data:
-            raise EntityAlreadyExists(machine.footprint)
+            raise EntityAlreadyExists(f'Machine "{machine.footprint}" already exists', Machine, machine.footprint)
         self._data[machine.footprint] = t.cast(ExecutionContext, self.model).from_dict(machine.as_dict())
         return machine
 
     def update(self, machine: Machine) -> Machine:
         if machine.footprint not in self._data:
-            raise EntityNotFound(machine.footprint)
+            raise EntityNotFound(f'Machine "{machine.footprint}" cannot be found', Machine, machine.footprint)
         self._data[machine.footprint] = t.cast(ExecutionContext, self.model).from_dict(machine.as_dict())
         return machine
 
     def get(self, uid: str) -> Machine:
         row = self._data.get(uid)
         if not row:
-            raise EntityNotFound(uid)
+            raise EntityNotFound(f'Machine "{uid}" cannot be found', Machine, uid)
         return Machine(
             uid=row.uid,
             cpu_frequency=row.cpu_frequency,

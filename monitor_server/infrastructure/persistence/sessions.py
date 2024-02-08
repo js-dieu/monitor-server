@@ -52,7 +52,7 @@ class SessionSQLRepository(SessionRepository, SQLRepository[Session]):
             self.session.execute(stmt)
             self.session.commit()
         except IntegrityError as e:
-            raise EntityAlreadyExists(item.uid) from e
+            raise EntityAlreadyExists(f'Session "{item.uid}" already exists', MonitorSession, item.uid) from e
         except SQLAlchemyError as e:
             raise ORMError(str(e)) from e
         return item
@@ -75,20 +75,20 @@ class SessionSQLRepository(SessionRepository, SQLRepository[Session]):
         row = self.session.execute(stmt).fetchone()
         if row is not None:
             return self.build_entity_from(row[0])
-        raise EntityNotFound(uid)
+        raise EntityNotFound(f'Session "{uid}" cannot be found', MonitorSession, uid)
 
 
 class SessionInMemRepository(SessionRepository, InMemoryRepository[Session]):
     def get(self, uid: str) -> MonitorSession:
         row = self._data.get(uid)
         if row is None:
-            raise EntityNotFound(uid)
+            raise EntityNotFound(f'Session "{uid}" cannot be found', MonitorSession, uid)
 
         return MonitorSession(uid=row.uid, scm_revision=row.scm_id, start_date=row.run_date, tags=row.description)
 
     def create(self, item: MonitorSession) -> MonitorSession:
         if item.uid in self._data:
-            raise EntityAlreadyExists(item.uid)
+            raise EntityAlreadyExists(f'Session "{item.uid}" already exists', MonitorSession, item.uid)
         self._data[item.uid] = Session(
             uid=item.uid, description=item.tags, run_date=item.start_date, scm_id=item.scm_revision
         )
@@ -96,7 +96,7 @@ class SessionInMemRepository(SessionRepository, InMemoryRepository[Session]):
 
     def update(self, item: MonitorSession) -> MonitorSession:
         if item.uid not in self._data:
-            raise EntityNotFound(item.uid)
+            raise EntityNotFound(f'Session "{item.uid}" cannot be found', MonitorSession, item.uid)
         self._data[item.uid] = Session(
             uid=item.uid, description=item.tags, run_date=item.start_date, scm_id=item.scm_revision
         )
