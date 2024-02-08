@@ -126,10 +126,13 @@ class MonitoringMetricsInMemService(MonitoringMetricsService):
             if e.entity_type == 'Machine':
                 raise LinkedEntityMissing(  # noqa: B904
                     f'Execution Context {e.entity_id} cannot be found. ' f'Metric {metric.uid.hex} cannot be inserted',
-                    'Machine',
+                    Machine,
+                    e.entity_id,
                 )
             raise LinkedEntityMissing(  # noqa: B904
-                f'Session {metric.session_id} cannot be found. Metric {metric.uid.hex} cannot be inserted', 'Session'
+                f'Session {metric.session_id} cannot be found. Metric {metric.uid.hex} cannot be inserted',
+                MonitorSession,
+                e.entity_id,
             )
         return self._metric_repo.create(metric)
 
@@ -155,11 +158,13 @@ class MonitoringMetricsInMemService(MonitoringMetricsService):
                     raise LinkedEntityMissing(  # noqa: B904
                         f'Execution Context {metric.node_id} cannot be found.'
                         f' Metric {metric.uid.hex} cannot be inserted',
-                        'Machine',
+                        Machine,
+                        e.entity_id,
                     )
                 raise LinkedEntityMissing(  # noqa: B904
                     f'Session {metric.session_id} cannot be found.' f' Metric {metric.uid.hex} cannot be inserted',
-                    'Session',
+                    MonitorSession,
+                    e.entity_id,
                 )
         return count
 
