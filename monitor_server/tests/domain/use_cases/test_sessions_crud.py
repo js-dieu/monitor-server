@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 import pytest
 
 from monitor_server.domain.dto.sessions import CreateSession, NewSessionCreated
-from monitor_server.domain.use_cases.abc import RESULT
+from monitor_server.domain.use_cases.exceptions import SessionAlreadyExists
 from monitor_server.domain.use_cases.sessions.crud import AddSession
 from monitor_server.infrastructure.persistence.sessions import SessionRepository
 
@@ -19,9 +19,11 @@ class TestAddMachineDB:
                 start_date=datetime(2024, 1, 31, 18, 24, 54, 123456, tzinfo=UTC),
                 tags={'description': 'a description', 'extras': 'information'},
             )
-        ) == RESULT(status=True, msg=None, data=NewSessionCreated(uid='abcd'))
+        ) == NewSessionCreated(uid='abcd')
 
-    def test_it_returns_ko_when_the_session_already_exists(self, session_sql_repo: SessionRepository):
+    def test_it_raises_session_already_exists_when_the_session_already_exists(
+        self, session_sql_repo: SessionRepository
+    ):
         use_case = AddSession(session_sql_repo)
         use_case.execute(
             CreateSession(
@@ -31,14 +33,15 @@ class TestAddMachineDB:
                 tags={'description': 'a description', 'extras': 'information'},
             )
         )
-        assert use_case.execute(
-            CreateSession(
-                uid='abcd',
-                scm_revision='scm_revision',
-                start_date=datetime(2024, 1, 31, 18, 24, 54, 123456, tzinfo=UTC),
-                tags={'description': 'a description', 'extras': 'information'},
+        with pytest.raises(SessionAlreadyExists, match='Session "abcd" already exists'):
+            use_case.execute(
+                CreateSession(
+                    uid='abcd',
+                    scm_revision='scm_revision',
+                    start_date=datetime(2024, 1, 31, 18, 24, 54, 123456, tzinfo=UTC),
+                    tags={'description': 'a description', 'extras': 'information'},
+                )
             )
-        ) == RESULT(status=False, msg='Session "abcd" already exists', data=NewSessionCreated())
 
 
 class TestAddSessionInMem:
@@ -51,9 +54,11 @@ class TestAddSessionInMem:
                 start_date=datetime(2024, 1, 31, 18, 24, 54, 123456, tzinfo=UTC),
                 tags={'description': 'a description', 'extras': 'information'},
             )
-        ) == RESULT(status=True, msg=None, data=NewSessionCreated(uid='abcd'))
+        ) == NewSessionCreated(uid='abcd')
 
-    def test_it_returns_ko_when_the_session_already_exists(self, session_in_mem_repo: SessionRepository):
+    def test_it_raises_session_already_exists_when_the_session_already_exists(
+        self, session_in_mem_repo: SessionRepository
+    ):
         use_case = AddSession(session_in_mem_repo)
         use_case.execute(
             CreateSession(
@@ -63,11 +68,12 @@ class TestAddSessionInMem:
                 tags={'description': 'a description', 'extras': 'information'},
             )
         )
-        assert use_case.execute(
-            CreateSession(
-                uid='abcd',
-                scm_revision='scm_revision',
-                start_date=datetime(2024, 1, 31, 18, 24, 54, 123456, tzinfo=UTC),
-                tags={'description': 'a description', 'extras': 'information'},
+        with pytest.raises(SessionAlreadyExists, match='Session "abcd" already exists'):
+            use_case.execute(
+                CreateSession(
+                    uid='abcd',
+                    scm_revision='scm_revision',
+                    start_date=datetime(2024, 1, 31, 18, 24, 54, 123456, tzinfo=UTC),
+                    tags={'description': 'a description', 'extras': 'information'},
+                )
             )
-        ) == RESULT(status=False, msg='Session "abcd" already exists', data=NewSessionCreated())
