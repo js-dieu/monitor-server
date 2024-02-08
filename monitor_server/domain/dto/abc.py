@@ -2,7 +2,7 @@ import typing as t
 
 from pydantic import BaseModel, ConfigDict, Field
 
-Attrib = Field
+Attribute = Field
 
 
 class DTO(BaseModel):
