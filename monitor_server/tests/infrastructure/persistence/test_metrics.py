@@ -5,6 +5,7 @@ import pytest
 from monitor_server.domain.entities.machines import Machine
 from monitor_server.domain.entities.metrics import Metric
 from monitor_server.domain.entities.sessions import MonitorSession
+from monitor_server.infrastructure.orm.pageable import PageableStatement
 from monitor_server.infrastructure.persistence.exceptions import (
     EntityAlreadyExists,
     EntityNotFound,
@@ -110,6 +111,58 @@ class TestMetricSQLRepository:
             metric_sql_repo.create(metric)
         assert metric_sql_repo.count() == 3
 
+    def test_it_lists_all_metrics_when_no_page_info_is_given(
+        self,
+        metrics_sql_service: MonitoringMetricsService,
+        metric_sql_repo: MetricSQLRepository,
+        a_session: MonitorSession,
+        a_machine: Machine,
+    ):
+        metrics_sql_service.add_session(a_session)
+        metrics_sql_service.add_machine(a_machine)
+        metric_generator: MetricGenerator = MetricGenerator(
+            a_session.start_date, lambda _: a_session.uid, lambda _: a_machine.uid
+        )
+        expected = []
+        for metric in (metric_generator(offset_from_start_date_sec=i) for i in range(30)):
+            metric_sql_repo.create(metric)
+            expected.append(metric.uid.hex)
+        assert metric_sql_repo.list() == sorted(expected)
+
+    def test_it_lists_all_metrics_in_the_given_page(
+        self,
+        metrics_sql_service: MonitoringMetricsService,
+        metric_sql_repo: MetricSQLRepository,
+        a_session: MonitorSession,
+        a_machine: Machine,
+    ):
+        metrics_sql_service.add_session(a_session)
+        metrics_sql_service.add_machine(a_machine)
+        metric_generator: MetricGenerator = MetricGenerator(
+            a_session.start_date, lambda _: a_session.uid, lambda _: a_machine.uid
+        )
+        expected = []
+        for metric in (metric_generator(offset_from_start_date_sec=i) for i in range(30)):
+            metric_sql_repo.create(metric)
+            expected.append(metric.uid.hex)
+        assert metric_sql_repo.list(PageableStatement(page_no=5, page_size=5)) == sorted(expected)[25:30]
+
+    def test_it_lists_no_element_when_out_of_bounds(
+        self,
+        metrics_sql_service: MonitoringMetricsService,
+        metric_sql_repo: MetricSQLRepository,
+        a_session: MonitorSession,
+        a_machine: Machine,
+    ):
+        metrics_sql_service.add_session(a_session)
+        metrics_sql_service.add_machine(a_machine)
+        metric_generator: MetricGenerator = MetricGenerator(
+            a_session.start_date, lambda _: a_session.uid, lambda _: a_machine.uid
+        )
+        for metric in (metric_generator(offset_from_start_date_sec=i) for i in range(30)):
+            metric_sql_repo.create(metric)
+        assert metric_sql_repo.list(PageableStatement(page_no=10, page_size=5)) == []
+
 
 class TestMetricInMemRepository:
     def test_it_creates_a_new_metric_from_unknown_uid(
@@ -152,3 +205,37 @@ class TestMetricInMemRepository:
         for metric in (metric_generator(offset_from_start_date_sec=i) for i in range(3)):
             metric_in_mem_repo.create(metric)
         assert metric_in_mem_repo.count() == 3
+
+    def test_it_lists_all_metrics_when_no_page_info_is_given(
+        self, metric_in_mem_repo: MetricSQLRepository, a_session: MonitorSession, a_machine: Machine
+    ):
+        metric_generator: MetricGenerator = MetricGenerator(
+            a_session.start_date, lambda _: a_session.uid, lambda _: a_machine.uid
+        )
+        expected = []
+        for metric in (metric_generator(offset_from_start_date_sec=i) for i in range(30)):
+            metric_in_mem_repo.create(metric)
+            expected.append(metric.uid.hex)
+        assert metric_in_mem_repo.list() == sorted(expected)
+
+    def test_it_lists_all_metrics_in_the_given_page(
+        self, metric_in_mem_repo: MetricSQLRepository, a_session: MonitorSession, a_machine: Machine
+    ):
+        metric_generator: MetricGenerator = MetricGenerator(
+            a_session.start_date, lambda _: a_session.uid, lambda _: a_machine.uid
+        )
+        expected = []
+        for metric in (metric_generator(offset_from_start_date_sec=i) for i in range(30)):
+            metric_in_mem_repo.create(metric)
+            expected.append(metric.uid.hex)
+        assert metric_in_mem_repo.list(PageableStatement(page_no=5, page_size=5)) == sorted(expected)[25:30]
+
+    def test_it_lists_no_element_when_out_of_bounds(
+        self, metric_in_mem_repo: MetricSQLRepository, a_session: MonitorSession, a_machine: Machine
+    ):
+        metric_generator: MetricGenerator = MetricGenerator(
+            a_session.start_date, lambda _: a_session.uid, lambda _: a_machine.uid
+        )
+        for metric in (metric_generator(offset_from_start_date_sec=i) for i in range(30)):
+            metric_in_mem_repo.create(metric)
+        assert metric_in_mem_repo.list(PageableStatement(page_no=10, page_size=5)) == []

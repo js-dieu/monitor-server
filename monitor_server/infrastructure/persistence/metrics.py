@@ -15,6 +15,7 @@ from monitor_server.domain.entities.metrics import Metric
 from monitor_server.domain.entities.sessions import MonitorSession
 from monitor_server.infrastructure.orm.declarative import ORMModel
 from monitor_server.infrastructure.orm.errors import ORMError
+from monitor_server.infrastructure.orm.pageable import PageableStatement
 from monitor_server.infrastructure.orm.repositories import InMemoryRepository, SQLRepository
 from monitor_server.infrastructure.persistence.exceptions import (
     EntityAlreadyExists,
@@ -78,6 +79,10 @@ class MetricRepository:
     def get(self, uid: str) -> Metric:
         """Get a session given an uid"""
 
+    @abc.abstractmethod
+    def list(self, page_info: PageableStatement | None = None) -> t.List[str]:
+        """List all metrics ids"""
+
 
 class MetricSQLRepository(MetricRepository, SQLRepository[TestMetric]):
     def create(self, item: Metric) -> Metric:
@@ -102,10 +107,10 @@ class MetricSQLRepository(MetricRepository, SQLRepository[TestMetric]):
             self.session.execute(stmt)
             self.session.commit()
         except IntegrityError as e:
-            x_cls: t.Type[ORMError] = EntityAlreadyExists
-            msg = item.uid.hex
-            etype: t.Type[Entity] = Metric
-            elinked = ''
+            x_cls: t.Type[ORMError]
+            msg: str
+            etype: t.Type[Entity]
+            elinked: str
             if e.orig.args[0] == 1452 and 'Session' in e.orig.args[1]:  # type: ignore[union-attr]
                 x_cls = LinkedEntityMissing
                 msg = f'Session {item.session_id} cannot be found.' f' Metric {item.uid.hex} cannot be inserted'
@@ -114,6 +119,10 @@ class MetricSQLRepository(MetricRepository, SQLRepository[TestMetric]):
                 x_cls = LinkedEntityMissing
                 msg = f'Execution Context {item.node_id} cannot be found.' f' Metric {item.uid.hex} cannot be inserted'
                 etype, elinked = Machine, item.node_id
+            else:
+                x_cls = EntityAlreadyExists
+                msg = f'Metric "{item.uid.hex}" already exists'
+                elinked, etype = item.uid.hex, Metric
             raise x_cls(msg, etype, elinked) from e
         except SQLAlchemyError as e:
             raise ORMError(str(e)) from e
@@ -151,6 +160,16 @@ class MetricSQLRepository(MetricRepository, SQLRepository[TestMetric]):
         if row is not None:
             return self.build_entity_from(row[0])
         raise EntityNotFound(f'Metric "{uid}" cannot be found', Metric, uid)
+
+    def list(self, page_info: PageableStatement | None = None) -> t.List[str]:
+        columns = tuple(getattr(self.model.__table__.c, key) for key in self.primary_key)
+        stmt = select(TestMetric).with_only_columns(*columns)
+        if page_info:
+            stmt = stmt.limit(page_info.page_size).offset(page_info.offset)
+        rows = self.session.execute(stmt).fetchall()
+        if rows:
+            return [row[0].hex for row in rows]
+        return []
 
 
 class MetricInMemRepository(MetricRepository, InMemoryRepository[TestMetric]):
@@ -204,3 +223,9 @@ class MetricInMemRepository(MetricRepository, InMemoryRepository[TestMetric]):
             mem_usage=item.memory_usage,
         )
         return item
+
+    def list(self, page_info: PageableStatement | None = None) -> t.List[str]:
+        if page_info is None:
+            return sorted(self._data)
+        page = slice(page_info.offset, page_info.offset + page_info.page_size)
+        return sorted(self._data.keys())[page]
