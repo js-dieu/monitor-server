@@ -154,7 +154,7 @@ class MonitoringMetricsInMemService(MonitoringMetricsService):
                 self._metric_repo.create(metric)
                 count += 1
             except EntityNotFound as e:
-                if metric.node_id in str(e):
+                if e.entity_type == Machine.__name__:
                     raise LinkedEntityMissing(  # noqa: B904
                         f'Execution Context {metric.node_id} cannot be found.'
                         f' Metric {metric.uid.hex} cannot be inserted',
