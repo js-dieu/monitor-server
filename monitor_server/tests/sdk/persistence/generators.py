@@ -5,7 +5,8 @@ import typing as t
 from uuid import UUID, uuid4
 
 from monitor_server.domain.entities.machines import Machine
-from monitor_server.infrastructure.persistence.metrics import Metric
+from monitor_server.domain.entities.metrics import Metric
+from monitor_server.domain.entities.sessions import MonitorSession
 
 EntityIdCallBack = t.Callable[[int], str]
 
@@ -86,4 +87,27 @@ class MachineGenerator:
             machine_arch=machine_arch or 'arch',
             system_info=system_info or 'system info',
             python_info=python_info or 'python info',
+        )
+
+
+class MonitorSessionGenerator:
+    def __init__(self) -> None:
+        self._counter = it.count(1)
+
+    def __call__(
+        self,
+        uid: t.Callable[[], UUID] = uuid4,
+        start_time: datetime.datetime | None = None,
+        description: str | None = None,
+        scm_revision: str | None = None,
+        tags: t.Dict[str, t.Any] | None = None,
+    ) -> MonitorSession:
+        step = next(self._counter)
+        _tags = {'description': description or f'run {step}', 'step': step}
+        _tags = _tags | (tags or {})
+        return MonitorSession(
+            uid=uid().hex,
+            scm_revision=scm_revision or '1a2506cf9f662000484c535b33dc73d52e067510',
+            start_date=start_time or datetime.datetime(2024, 2, 12, 14, 41, 55, 65894, tzinfo=datetime.UTC),
+            tags=_tags,
         )
