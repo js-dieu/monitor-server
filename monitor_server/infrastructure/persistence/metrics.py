@@ -1,19 +1,13 @@
 import abc
-import pathlib
 import typing as t
-from datetime import datetime
-from uuid import UUID
 
-from sqlalchemy import Float, ForeignKey, String
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import insert, select, update
 
 from monitor_server.domain.entities.abc import Entity
 from monitor_server.domain.entities.machines import Machine
 from monitor_server.domain.entities.metrics import Metric
 from monitor_server.domain.entities.sessions import MonitorSession
-from monitor_server.infrastructure.orm.declarative import ORMModel
 from monitor_server.infrastructure.orm.errors import ORMError
 from monitor_server.infrastructure.orm.pageable import PageableStatement
 from monitor_server.infrastructure.orm.repositories import InMemoryRepository, SQLRepository
@@ -22,51 +16,11 @@ from monitor_server.infrastructure.persistence.exceptions import (
     EntityNotFound,
     LinkedEntityMissing,
 )
-from monitor_server.infrastructure.persistence.machines import ExecutionContext
-from monitor_server.infrastructure.persistence.sessions import Session
-
-
-class TestMetric(ORMModel):
-    uid: Mapped[UUID] = mapped_column(nullable=False, primary_key=True)
-    sid: Mapped[str] = mapped_column(String(64), ForeignKey(Session.uid), nullable=False)
-    xid: Mapped[str] = mapped_column(String(64), ForeignKey(ExecutionContext.uid), nullable=False)
-    item_start_time: Mapped[datetime] = mapped_column(nullable=False)
-    item_path: Mapped[str] = mapped_column(String(4096), nullable=False)
-    item: Mapped[str] = mapped_column(String(2048), nullable=False)
-    variant: Mapped[str] = mapped_column(String(2048), nullable=False)
-    item_fs_loc: Mapped[str] = mapped_column(String(2048), nullable=False)
-    kind: Mapped[str] = mapped_column(String(64), nullable=False)
-    component: Mapped[str] = mapped_column(String(512), nullable=False)
-    wall_time: Mapped[float] = mapped_column(Float(), nullable=False)
-    user_time: Mapped[float] = mapped_column(Float(), nullable=False)
-    kernel_time: Mapped[float] = mapped_column(Float(), nullable=False)
-    cpu_usage: Mapped[float] = mapped_column(Float(), nullable=False)
-    mem_usage: Mapped[float] = mapped_column(Float(), nullable=False)
-    session = relationship(Session)
-    execution_context = relationship(ExecutionContext)
+from monitor_server.infrastructure.persistence.mapper import ORMMapper
+from monitor_server.infrastructure.persistence.models import TestMetric
 
 
 class MetricRepository:
-    @classmethod
-    def build_entity_from(cls, model: TestMetric) -> Metric:
-        return Metric(
-            uid=model.uid,
-            session_id=model.sid,
-            node_id=model.xid,
-            item_start_time=model.item_start_time,
-            item_path=model.item_path,
-            item=model.item,
-            variant=model.variant,
-            item_path_fs=pathlib.Path(model.item_fs_loc),
-            item_type=model.kind,
-            component=model.component,
-            wall_time=model.wall_time,
-            user_time=model.user_time,
-            kernel_time=model.kernel_time,
-            cpu_usage=model.cpu_usage,
-            memory_usage=model.mem_usage,
-        )
-
     @abc.abstractmethod
     def create(self, item: Metric) -> Metric:
         """Persist a new session"""
@@ -80,8 +34,12 @@ class MetricRepository:
         """Get a session given an uid"""
 
     @abc.abstractmethod
-    def list(self, page_info: PageableStatement | None = None) -> t.List[str]:
+    def list(self, page_info: PageableStatement | None = None) -> t.List[Metric]:
         """List all metrics ids"""
+
+    @abc.abstractmethod
+    def count(self) -> int:
+        """Count the number of items in this repository"""
 
 
 class MetricSQLRepository(MetricRepository, SQLRepository[TestMetric]):
@@ -154,22 +112,23 @@ class MetricSQLRepository(MetricRepository, SQLRepository[TestMetric]):
             raise ORMError(str(e)) from e
         return item
 
+    def count(self) -> int:
+        return super()._count()
+
     def get(self, uid: str) -> Metric:
         stmt = select(TestMetric).where(TestMetric.uid == uid)
         row = self.session.execute(stmt).fetchone()
         if row is not None:
-            return self.build_entity_from(row[0])
+            return ORMMapper().orm_test_metric_to_entity(row[0])
         raise EntityNotFound(f'Metric "{uid}" cannot be found', Metric, uid)
 
-    def list(self, page_info: PageableStatement | None = None) -> t.List[str]:
-        columns = tuple(getattr(self.model.__table__.c, key) for key in self.primary_key)
-        stmt = select(TestMetric).with_only_columns(*columns)
+    def list(self, page_info: PageableStatement | None = None) -> t.List[Metric]:
+        q = self.session.query(self.model)
         if page_info:
-            stmt = stmt.limit(page_info.page_size).offset(page_info.offset)
-        rows = self.session.execute(stmt).fetchall()
-        if rows:
-            return [row[0].hex for row in rows]
-        return []
+            q = q.offset(page_info.offset).limit(page_info.page_size)
+        rows: t.List[TestMetric] = t.cast(t.List[TestMetric], q.all())
+        mapper = ORMMapper()
+        return [mapper.orm_test_metric_to_entity(row) for row in rows or []]
 
 
 class MetricInMemRepository(MetricRepository, InMemoryRepository[TestMetric]):
@@ -178,7 +137,7 @@ class MetricInMemRepository(MetricRepository, InMemoryRepository[TestMetric]):
         if row is None:
             raise EntityNotFound(f'Metric "{uid}" cannot be found', Metric, uid)
 
-        return self.build_entity_from(row)
+        return ORMMapper().orm_test_metric_to_entity(row)
 
     def create(self, item: Metric) -> Metric:
         if item.uid.hex in self._data:
@@ -224,8 +183,16 @@ class MetricInMemRepository(MetricRepository, InMemoryRepository[TestMetric]):
         )
         return item
 
-    def list(self, page_info: PageableStatement | None = None) -> t.List[str]:
+    def list(self, page_info: PageableStatement | None = None) -> t.List[Metric]:
+        mapper = ORMMapper()
         if page_info is None:
-            return sorted(self._data)
+            return [
+                mapper.orm_test_metric_to_entity(metric)
+                for metric in sorted(self._data.values(), key=lambda m: m.uid.hex)
+            ]
         page = slice(page_info.offset, page_info.offset + page_info.page_size)
-        return sorted(self._data.keys())[page]
+        element_ids = sorted(self._data.keys())[page]
+        return [mapper.orm_test_metric_to_entity(self._data[element_id]) for element_id in element_ids]
+
+    def count(self) -> int:
+        return super()._count()

@@ -39,10 +39,6 @@ class RepositoryBase(ABC, t.Generic[Model]):
     def truncate(self) -> None:
         """Remove all rows"""
 
-    @abc.abstractmethod
-    def count(self) -> int:
-        """Count how many rows are stored"""
-
 
 class SQLRepository(RepositoryBase[Model]):
     def __init__(self, session: Session) -> None:
@@ -53,7 +49,7 @@ class SQLRepository(RepositoryBase[Model]):
     def primary_key(self) -> t.Tuple[str, ...]:
         return tuple(self.model.__table__.primary_key.columns.keys())  # type: ignore
 
-    def count(self) -> int:
+    def _count(self) -> int:
         primary_key = tuple(getattr(self.model, a) for a in self.primary_key)
         return (
             self.session.execute(
@@ -75,7 +71,7 @@ class InMemoryRepository(RepositoryBase[Model]):
         super().__init__()
         self._data: t.Dict[t.Any, Model] = {}
 
-    def count(self) -> int:
+    def _count(self) -> int:
         return len(self._data)
 
     def truncate(self) -> None:

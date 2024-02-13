@@ -1,64 +1,20 @@
 import abc
 import typing as t
 
-from sqlalchemy import Integer, String, insert, select, update
+from sqlalchemy import insert, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlalchemy.orm import Mapped, Session, mapped_column
+from sqlalchemy.orm import Session
 
 from monitor_server.domain.entities.machines import Machine
-from monitor_server.infrastructure.orm.declarative import ORMModel
 from monitor_server.infrastructure.orm.errors import ORMError
+from monitor_server.infrastructure.orm.pageable import PageableStatement
 from monitor_server.infrastructure.orm.repositories import InMemoryRepository, SQLRepository
 from monitor_server.infrastructure.persistence.exceptions import EntityAlreadyExists, EntityNotFound
-
-
-class ExecutionContext(ORMModel):
-    uid: Mapped[str] = mapped_column(String(64), nullable=False, primary_key=True)
-    cpu_frequency: Mapped[int] = mapped_column(Integer(), nullable=False)
-    cpu_vendor: Mapped[str] = mapped_column(String(256), nullable=False)
-    cpu_count: Mapped[int] = mapped_column(Integer(), nullable=False)
-    cpu_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    total_ram: Mapped[int] = mapped_column(Integer(), nullable=False)
-    hostname: Mapped[str] = mapped_column(String(512), nullable=False)
-    machine_type: Mapped[str] = mapped_column(String(32), nullable=False)
-    machine_arch: Mapped[str] = mapped_column(String(16), nullable=False)
-    system_info: Mapped[str] = mapped_column(String(256), nullable=False)
-    python_info: Mapped[str] = mapped_column(String(512), nullable=False)
-
-    @classmethod
-    def from_dict(cls, data: t.Dict[str, t.Any]) -> 'ExecutionContext':
-        return cls(
-            uid=data.get('footprint', data['uid']),
-            cpu_frequency=data['cpu_frequency'],
-            cpu_vendor=data['cpu_vendor'],
-            cpu_count=data['cpu_count'],
-            cpu_type=data['cpu_type'],
-            total_ram=data['total_ram'],
-            hostname=data['hostname'],
-            machine_type=data['machine_type'],
-            machine_arch=data['machine_arch'],
-            system_info=data['system_info'],
-            python_info=data['python_info'],
-        )
+from monitor_server.infrastructure.persistence.mapper import ORMMapper
+from monitor_server.infrastructure.persistence.models import ExecutionContext
 
 
 class ExecutionContextRepository:
-    @classmethod
-    def build_entity_from(cls, model: ExecutionContext) -> Machine:
-        return Machine(
-            uid=model.uid,
-            cpu_frequency=model.cpu_frequency,
-            cpu_vendor=model.cpu_vendor,
-            cpu_count=model.cpu_count,
-            cpu_type=model.cpu_type,
-            total_ram=model.total_ram,
-            hostname=model.hostname,
-            machine_type=model.machine_type,
-            machine_arch=model.machine_arch,
-            system_info=model.system_info,
-            python_info=model.python_info,
-        )
-
     @abc.abstractmethod
     def create(self, item: Machine) -> Machine:
         """Persist a new context"""
@@ -71,10 +27,21 @@ class ExecutionContextRepository:
     def get(self, uid: str) -> Machine:
         """Get an execution context given an uid"""
 
+    @abc.abstractmethod
+    def list(self, page_info: PageableStatement | None = None) -> t.List[Machine]:
+        """List all ids of known machine"""
+
+    @abc.abstractmethod
+    def count(self) -> int:
+        """Count the number of items in this repository"""
+
 
 class ExecutionContextSQLRepository(ExecutionContextRepository, SQLRepository[ExecutionContext]):
     def __init__(self, session: Session) -> None:
         super().__init__(session)
+
+    def count(self) -> int:
+        return super()._count()
 
     def create(self, machine: Machine) -> Machine:
         stmt = insert(ExecutionContext).values(
@@ -130,8 +97,16 @@ class ExecutionContextSQLRepository(ExecutionContextRepository, SQLRepository[Ex
         stmt = select(self.model).where(ExecutionContext.uid == uid)
         row = self.session.execute(stmt).fetchone()
         if row is not None:
-            return self.build_entity_from(row[0])
+            return ORMMapper().orm_execution_context_to_entity(row[0])
         raise EntityNotFound(f'Machine {uid} cannot be found', Machine, uid)
+
+    def list(self, page_info: PageableStatement | None = None) -> t.List[Machine]:
+        q = self.session.query(self.model)
+        if page_info:
+            q = q.limit(page_info.page_size).offset(page_info.offset)
+        rows = t.cast(t.Iterable[ExecutionContext], q.all())
+        mapper = ORMMapper()
+        return [mapper.orm_execution_context_to_entity(row) for row in rows or []]
 
 
 class ExecutionContextInMemRepository(ExecutionContextRepository, InMemoryRepository[ExecutionContext]):
@@ -154,16 +129,18 @@ class ExecutionContextInMemRepository(ExecutionContextRepository, InMemoryReposi
         row = self._data.get(uid)
         if not row:
             raise EntityNotFound(f'Machine "{uid}" cannot be found', Machine, uid)
-        return Machine(
-            uid=row.uid,
-            cpu_frequency=row.cpu_frequency,
-            cpu_vendor=row.cpu_vendor,
-            cpu_count=row.cpu_count,
-            cpu_type=row.cpu_type,
-            total_ram=row.total_ram,
-            hostname=row.hostname,
-            machine_type=row.machine_type,
-            machine_arch=row.machine_arch,
-            system_info=row.system_info,
-            python_info=row.python_info,
-        )
+        return ORMMapper().orm_execution_context_to_entity(row)
+
+    def list(self, page_info: PageableStatement | None = None) -> t.List[Machine]:
+        mapper = ORMMapper()
+        if page_info is None:
+            return [
+                mapper.orm_execution_context_to_entity(machine)
+                for machine in sorted(self._data.values(), key=lambda m: m.uid)
+            ]
+        page = slice(page_info.offset, page_info.offset + page_info.page_size)
+        element_ids = sorted(self._data.keys())[page]
+        return [mapper.orm_execution_context_to_entity(self._data[element_id]) for element_id in element_ids]
+
+    def count(self) -> int:
+        return super()._count()

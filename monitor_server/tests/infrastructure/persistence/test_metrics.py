@@ -11,7 +11,7 @@ from monitor_server.infrastructure.persistence.exceptions import (
     EntityNotFound,
     LinkedEntityMissing,
 )
-from monitor_server.infrastructure.persistence.metrics import MetricInMemRepository, MetricSQLRepository
+from monitor_server.infrastructure.persistence.metrics import MetricRepository
 from monitor_server.infrastructure.persistence.services import MonitoringMetricsService
 from monitor_server.tests.sdk.persistence.generators import MetricGenerator
 
@@ -21,7 +21,7 @@ class TestMetricSQLRepository:
     def test_it_creates_a_new_metric_from_unknown_uid(
         self,
         metrics_sql_service: MonitoringMetricsService,
-        metric_sql_repo: MetricSQLRepository,
+        metric_sql_repo: MetricRepository,
         a_session: MonitorSession,
         a_machine: Machine,
         a_valid_metric: Metric,
@@ -34,7 +34,7 @@ class TestMetricSQLRepository:
     def test_create_a_metric_raises_linked_entity_missing_if_session_is_unknown(
         self,
         metrics_sql_service: MonitoringMetricsService,
-        metric_sql_repo: MetricSQLRepository,
+        metric_sql_repo: MetricRepository,
         a_session: MonitorSession,
         a_machine: Machine,
         a_valid_metric: Metric,
@@ -47,7 +47,7 @@ class TestMetricSQLRepository:
     def test_create_a_metric_raises_linked_entity_missing_if_machine_is_unknown(
         self,
         metrics_sql_service: MonitoringMetricsService,
-        metric_sql_repo: MetricSQLRepository,
+        metric_sql_repo: MetricRepository,
         a_session: MonitorSession,
         a_machine: Machine,
         a_valid_metric: Metric,
@@ -62,7 +62,7 @@ class TestMetricSQLRepository:
     def test_it_raises_entity_already_exists_when_creating_twice_the_same_uid(
         self,
         metrics_sql_service: MonitoringMetricsService,
-        metric_sql_repo: MetricSQLRepository,
+        metric_sql_repo: MetricRepository,
         a_session: MonitorSession,
         a_machine: Machine,
         a_valid_metric: Metric,
@@ -77,7 +77,7 @@ class TestMetricSQLRepository:
     def test_it_returns_a_metric_when_querying_a_known_uid(
         self,
         metrics_sql_service: MonitoringMetricsService,
-        metric_sql_repo: MetricSQLRepository,
+        metric_sql_repo: MetricRepository,
         a_session: MonitorSession,
         a_machine: Machine,
         a_valid_metric: Metric,
@@ -87,18 +87,18 @@ class TestMetricSQLRepository:
         metric_sql_repo.create(a_valid_metric)
         assert metric_sql_repo.get(a_valid_metric.uid.hex) == a_valid_metric
 
-    def test_it_raises_entity_not_found_when_querying_an_unknown_metric(self, metric_sql_repo: MetricSQLRepository):
+    def test_it_raises_entity_not_found_when_querying_an_unknown_metric(self, metric_sql_repo: MetricRepository):
         an_id = uuid.uuid4()
         with pytest.raises(EntityNotFound, match=an_id.hex):
             metric_sql_repo.get(an_id.hex)
 
-    def test_an_empty_repository_counts_0_elements(self, metric_sql_repo: MetricSQLRepository):
+    def test_an_empty_repository_counts_0_elements(self, metric_sql_repo: MetricRepository):
         assert metric_sql_repo.count() == 0
 
     def test_a_repository_having_3_elements_counts_3(
         self,
         metrics_sql_service: MonitoringMetricsService,
-        metric_sql_repo: MetricSQLRepository,
+        metric_sql_repo: MetricRepository,
         a_session: MonitorSession,
         a_machine: Machine,
     ):
@@ -114,7 +114,7 @@ class TestMetricSQLRepository:
     def test_it_lists_all_metrics_when_no_page_info_is_given(
         self,
         metrics_sql_service: MonitoringMetricsService,
-        metric_sql_repo: MetricSQLRepository,
+        metric_sql_repo: MetricRepository,
         a_session: MonitorSession,
         a_machine: Machine,
     ):
@@ -126,13 +126,13 @@ class TestMetricSQLRepository:
         expected = []
         for metric in (metric_generator(offset_from_start_date_sec=i) for i in range(30)):
             metric_sql_repo.create(metric)
-            expected.append(metric.uid.hex)
-        assert metric_sql_repo.list() == sorted(expected)
+            expected.append(metric)
+        assert metric_sql_repo.list() == sorted(expected, key=lambda m: m.uid.hex)
 
     def test_it_lists_all_metrics_in_the_given_page(
         self,
         metrics_sql_service: MonitoringMetricsService,
-        metric_sql_repo: MetricSQLRepository,
+        metric_sql_repo: MetricRepository,
         a_session: MonitorSession,
         a_machine: Machine,
     ):
@@ -144,13 +144,14 @@ class TestMetricSQLRepository:
         expected = []
         for metric in (metric_generator(offset_from_start_date_sec=i) for i in range(30)):
             metric_sql_repo.create(metric)
-            expected.append(metric.uid.hex)
-        assert metric_sql_repo.list(PageableStatement(page_no=5, page_size=5)) == sorted(expected)[25:30]
+            expected.append(metric)
+        expected = sorted(expected, key=lambda m: m.uid.hex)[25:30]
+        assert metric_sql_repo.list(PageableStatement(page_no=5, page_size=5)) == expected
 
     def test_it_lists_no_element_when_out_of_bounds(
         self,
         metrics_sql_service: MonitoringMetricsService,
-        metric_sql_repo: MetricSQLRepository,
+        metric_sql_repo: MetricRepository,
         a_session: MonitorSession,
         a_machine: Machine,
     ):
@@ -166,12 +167,12 @@ class TestMetricSQLRepository:
 
 class TestMetricInMemRepository:
     def test_it_creates_a_new_metric_from_unknown_uid(
-        self, metric_in_mem_repo: MetricInMemRepository, a_valid_metric: Metric
+        self, metric_in_mem_repo: MetricRepository, a_valid_metric: Metric
     ):
         assert metric_in_mem_repo.create(a_valid_metric)
 
     def test_it_raises_entity_already_exists_when_creating_twice_the_same_uid(
-        self, metric_in_mem_repo: MetricInMemRepository, a_valid_metric: Metric
+        self, metric_in_mem_repo: MetricRepository, a_valid_metric: Metric
     ):
         metric_in_mem_repo.create(a_valid_metric)
 
@@ -179,14 +180,14 @@ class TestMetricInMemRepository:
             metric_in_mem_repo.create(a_valid_metric)
 
     def test_it_returns_a_metric_when_querying_a_known_uid(
-        self, metric_in_mem_repo: MetricInMemRepository, a_valid_metric: Metric
+        self, metric_in_mem_repo: MetricRepository, a_valid_metric: Metric
     ):
         metric_in_mem_repo.create(a_valid_metric)
         assert metric_in_mem_repo.get(a_valid_metric.uid.hex) == a_valid_metric
 
     def test_it_raises_entity_not_found_when_querying_an_unknown_metric(
         self,
-        metric_in_mem_repo: MetricInMemRepository,
+        metric_in_mem_repo: MetricRepository,
     ):
         an_id = uuid.uuid4().hex
         with pytest.raises(EntityNotFound, match=f'Metric "{an_id}" cannot be found'):
@@ -194,11 +195,11 @@ class TestMetricInMemRepository:
 
     def test_an_empty_repository_counts_0_elements(
         self,
-        metric_in_mem_repo: MetricInMemRepository,
+        metric_in_mem_repo: MetricRepository,
     ):
         assert metric_in_mem_repo.count() == 0
 
-    def test_a_repository_having_3_elements_counts_3(self, metric_in_mem_repo: MetricInMemRepository, a_start_time):
+    def test_a_repository_having_3_elements_counts_3(self, metric_in_mem_repo: MetricRepository, a_start_time):
         metric_generator: MetricGenerator = MetricGenerator(
             a_start_time, lambda _: uuid.uuid4().hex, lambda _: uuid.uuid4().hex
         )
@@ -207,7 +208,7 @@ class TestMetricInMemRepository:
         assert metric_in_mem_repo.count() == 3
 
     def test_it_lists_all_metrics_when_no_page_info_is_given(
-        self, metric_in_mem_repo: MetricSQLRepository, a_session: MonitorSession, a_machine: Machine
+        self, metric_in_mem_repo: MetricRepository, a_session: MonitorSession, a_machine: Machine
     ):
         metric_generator: MetricGenerator = MetricGenerator(
             a_session.start_date, lambda _: a_session.uid, lambda _: a_machine.uid
@@ -215,11 +216,11 @@ class TestMetricInMemRepository:
         expected = []
         for metric in (metric_generator(offset_from_start_date_sec=i) for i in range(30)):
             metric_in_mem_repo.create(metric)
-            expected.append(metric.uid.hex)
-        assert metric_in_mem_repo.list() == sorted(expected)
+            expected.append(metric)
+        assert metric_in_mem_repo.list() == sorted(expected, key=lambda m: m.uid.hex)
 
     def test_it_lists_all_metrics_in_the_given_page(
-        self, metric_in_mem_repo: MetricSQLRepository, a_session: MonitorSession, a_machine: Machine
+        self, metric_in_mem_repo: MetricRepository, a_session: MonitorSession, a_machine: Machine
     ):
         metric_generator: MetricGenerator = MetricGenerator(
             a_session.start_date, lambda _: a_session.uid, lambda _: a_machine.uid
@@ -227,11 +228,12 @@ class TestMetricInMemRepository:
         expected = []
         for metric in (metric_generator(offset_from_start_date_sec=i) for i in range(30)):
             metric_in_mem_repo.create(metric)
-            expected.append(metric.uid.hex)
-        assert metric_in_mem_repo.list(PageableStatement(page_no=5, page_size=5)) == sorted(expected)[25:30]
+            expected.append(metric)
+        expected = sorted(expected, key=lambda m: m.uid.hex)[25:30]
+        assert metric_in_mem_repo.list(PageableStatement(page_no=5, page_size=5)) == expected
 
     def test_it_lists_no_element_when_out_of_bounds(
-        self, metric_in_mem_repo: MetricSQLRepository, a_session: MonitorSession, a_machine: Machine
+        self, metric_in_mem_repo: MetricRepository, a_session: MonitorSession, a_machine: Machine
     ):
         metric_generator: MetricGenerator = MetricGenerator(
             a_session.start_date, lambda _: a_session.uid, lambda _: a_machine.uid

@@ -1,35 +1,19 @@
 import abc
 import typing as t
-from datetime import datetime
 
-# import sqlalchemy.dialects.mysql as mysql
-from sqlalchemy import JSON, String
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlalchemy.ext.mutable import MutableDict
-from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import insert, select, update
 
 from monitor_server.domain.entities.sessions import MonitorSession
-from monitor_server.infrastructure.orm.declarative import ORMModel
 from monitor_server.infrastructure.orm.errors import ORMError
+from monitor_server.infrastructure.orm.pageable import PageableStatement
 from monitor_server.infrastructure.orm.repositories import InMemoryRepository, SQLRepository
 from monitor_server.infrastructure.persistence.exceptions import EntityAlreadyExists, EntityNotFound
-
-
-class Session(ORMModel):
-    uid: Mapped[str] = mapped_column(String(64), nullable=False, primary_key=True)
-    run_date: Mapped[datetime] = mapped_column(nullable=False)
-    description: Mapped[t.Dict[str, t.Any]] = mapped_column(MutableDict.as_mutable(JSON()), nullable=False)
-    scm_id: Mapped[str] = mapped_column(String(128), nullable=False)
+from monitor_server.infrastructure.persistence.mapper import ORMMapper
+from monitor_server.infrastructure.persistence.models import Session
 
 
 class SessionRepository:
-    @classmethod
-    def build_entity_from(cls, model: Session) -> MonitorSession:
-        return MonitorSession(
-            uid=model.uid, start_date=model.run_date, scm_revision=model.scm_id, tags=model.description
-        )
-
     @abc.abstractmethod
     def create(self, item: MonitorSession) -> MonitorSession:
         """Persist a new session"""
@@ -41,6 +25,14 @@ class SessionRepository:
     @abc.abstractmethod
     def get(self, uid: str) -> MonitorSession:
         """Get a session given an uid"""
+
+    @abc.abstractmethod
+    def list(self, page_info: PageableStatement | None = None) -> t.List[MonitorSession]:
+        """List all known sessions"""
+
+    @abc.abstractmethod
+    def count(self) -> int:
+        """Count the number of items in this repository"""
 
 
 class SessionSQLRepository(SessionRepository, SQLRepository[Session]):
@@ -56,6 +48,9 @@ class SessionSQLRepository(SessionRepository, SQLRepository[Session]):
         except SQLAlchemyError as e:
             raise ORMError(str(e)) from e
         return item
+
+    def count(self) -> int:
+        return super()._count()
 
     def update(self, item: MonitorSession) -> MonitorSession:
         stmt = (
@@ -74,8 +69,16 @@ class SessionSQLRepository(SessionRepository, SQLRepository[Session]):
         stmt = select(Session).where(Session.uid == uid)
         row = self.session.execute(stmt).fetchone()
         if row is not None:
-            return self.build_entity_from(row[0])
+            return ORMMapper().orm_session_to_entity(row[0])
         raise EntityNotFound(f'Session "{uid}" cannot be found', MonitorSession, uid)
+
+    def list(self, page_info: PageableStatement | None = None) -> t.List[MonitorSession]:
+        q = self.session.query(self.model)
+        if page_info:
+            q = q.limit(page_info.page_size).offset(page_info.offset)
+        rows: t.List[Session] = t.cast(t.List[Session], q.all())
+        mapper = ORMMapper()
+        return [mapper.orm_session_to_entity(row) for row in rows or []]
 
 
 class SessionInMemRepository(SessionRepository, InMemoryRepository[Session]):
@@ -101,3 +104,16 @@ class SessionInMemRepository(SessionRepository, InMemoryRepository[Session]):
             uid=item.uid, description=item.tags, run_date=item.start_date, scm_id=item.scm_revision
         )
         return item
+
+    def list(self, page_info: PageableStatement | None = None) -> t.List[MonitorSession]:
+        mapper = ORMMapper()
+        if page_info is None:
+            return [
+                mapper.orm_session_to_entity(session) for session in sorted(self._data.values(), key=lambda m: m.uid)
+            ]
+        page = slice(page_info.offset, page_info.offset + page_info.page_size)
+        element_ids = sorted(self._data.keys())[page]
+        return [mapper.orm_session_to_entity(self._data[element_id]) for element_id in element_ids]
+
+    def count(self) -> int:
+        return super()._count()
