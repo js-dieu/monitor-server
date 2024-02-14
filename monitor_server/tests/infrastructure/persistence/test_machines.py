@@ -1,7 +1,9 @@
+import typing as t
+
 import pytest
 
 from monitor_server.domain.entities.machines import Machine
-from monitor_server.infrastructure.orm.pageable import PageableStatement
+from monitor_server.infrastructure.orm.pageable import PageableStatement, PaginatedResponse
 from monitor_server.infrastructure.persistence.exceptions import EntityAlreadyExists, EntityNotFound
 from monitor_server.infrastructure.persistence.machines import ExecutionContextRepository
 from monitor_server.tests.sdk.persistence.generators import MachineGenerator
@@ -48,34 +50,55 @@ class TestExecutionContextSQLRepository:
         execution_context_sql_repo: ExecutionContextRepository,
     ):
         machine_generator: MachineGenerator = MachineGenerator()
-        expected = []
+        machines = []
         for machine in (machine_generator() for _ in range(30)):
             execution_context_sql_repo.create(machine)
-            expected.append(machine)
-        assert execution_context_sql_repo.list() == sorted(expected, key=lambda m: m.uid)
+            machines.append(machine)
+
+        expected = PaginatedResponse[t.List[Machine]](
+            data=sorted(machines, key=lambda m: m.uid), next_page=None, page_no=None
+        )
+
+        assert execution_context_sql_repo.list() == expected
 
     def test_it_lists_all_execution_contexts_in_the_given_page(
         self,
         execution_context_sql_repo: ExecutionContextRepository,
     ):
         machine_generator: MachineGenerator = MachineGenerator()
-        expected = []
+        machines = []
         for machine in (machine_generator() for _ in range(30)):
             execution_context_sql_repo.create(machine)
-            expected.append(machine)
-        expected = sorted(expected, key=lambda m: m.uid)[25:30]
+            machines.append(machine)
+        expected = PaginatedResponse[t.List[Machine]](
+            data=list(sorted(machines, key=lambda m: m.uid)[25:30]), page_no=5, next_page=None
+        )
         assert execution_context_sql_repo.list(PageableStatement(page_no=5, page_size=5)) == expected
+
+    def test_it_lists_all_execution_contexts_in_the_given_page_and_provide_next_page_info(
+        self,
+        execution_context_sql_repo: ExecutionContextRepository,
+    ):
+        machine_generator: MachineGenerator = MachineGenerator()
+        machines = []
+        for machine in (machine_generator() for _ in range(30)):
+            execution_context_sql_repo.create(machine)
+            machines.append(machine)
+        expected = PaginatedResponse[t.List[Machine]](
+            data=list(sorted(machines, key=lambda m: m.uid)[20:25]), page_no=4, next_page=5
+        )
+        assert execution_context_sql_repo.list(PageableStatement(page_no=4, page_size=5)) == expected
 
     def test_it_lists_no_element_when_out_of_bounds(
         self,
         execution_context_sql_repo: ExecutionContextRepository,
     ):
         machine_generator: MachineGenerator = MachineGenerator()
-        expected = []
         for machine in (machine_generator() for _ in range(30)):
             execution_context_sql_repo.create(machine)
-            expected.append(machine)
-        assert execution_context_sql_repo.list(PageableStatement(page_no=10, page_size=5)) == []
+
+        expected = PaginatedResponse[t.List[Machine]](data=[], page_no=10, next_page=None)
+        assert execution_context_sql_repo.list(PageableStatement(page_no=10, page_size=5)) == expected
 
 
 class TestExecutionContextInMemRepository:
@@ -114,31 +137,52 @@ class TestExecutionContextInMemRepository:
         execution_context_in_mem_repo: ExecutionContextRepository,
     ):
         machine_generator: MachineGenerator = MachineGenerator()
-        expected = []
+        machines = []
         for machine in (machine_generator() for _ in range(30)):
             execution_context_in_mem_repo.create(machine)
-            expected.append(machine)
-        assert execution_context_in_mem_repo.list() == sorted(expected, key=lambda m: m.uid)
+            machines.append(machine)
+
+        expected = PaginatedResponse[t.List[Machine]](
+            data=sorted(machines, key=lambda m: m.uid), next_page=None, page_no=None
+        )
+
+        assert execution_context_in_mem_repo.list() == expected
 
     def test_it_lists_all_execution_contexts_in_the_given_page(
         self,
         execution_context_in_mem_repo: ExecutionContextRepository,
     ):
         machine_generator: MachineGenerator = MachineGenerator()
-        expected = []
+        machines = []
         for machine in (machine_generator() for _ in range(30)):
             execution_context_in_mem_repo.create(machine)
-            expected.append(machine)
-        expected = sorted(expected, key=lambda m: m.uid)[25:30]
+            machines.append(machine)
+        expected = PaginatedResponse[t.List[Machine]](
+            data=list(sorted(machines, key=lambda m: m.uid)[25:30]), page_no=5, next_page=None
+        )
         assert execution_context_in_mem_repo.list(PageableStatement(page_no=5, page_size=5)) == expected
+
+    def test_it_lists_all_execution_contexts_in_the_given_page_and_provide_next_page_info(
+        self,
+        execution_context_in_mem_repo: ExecutionContextRepository,
+    ):
+        machine_generator: MachineGenerator = MachineGenerator()
+        machines = []
+        for machine in (machine_generator() for _ in range(30)):
+            execution_context_in_mem_repo.create(machine)
+            machines.append(machine)
+        expected = PaginatedResponse[t.List[Machine]](
+            data=list(sorted(machines, key=lambda m: m.uid)[20:25]), page_no=4, next_page=5
+        )
+        assert execution_context_in_mem_repo.list(PageableStatement(page_no=4, page_size=5)) == expected
 
     def test_it_lists_no_element_when_out_of_bounds(
         self,
         execution_context_in_mem_repo: ExecutionContextRepository,
     ):
         machine_generator: MachineGenerator = MachineGenerator()
-        expected = []
         for machine in (machine_generator() for _ in range(30)):
             execution_context_in_mem_repo.create(machine)
-            expected.append(machine)
-        assert execution_context_in_mem_repo.list(PageableStatement(page_no=10, page_size=5)) == []
+
+        expected = PaginatedResponse[t.List[Machine]](data=[], page_no=10, next_page=None)
+        assert execution_context_in_mem_repo.list(PageableStatement(page_no=10, page_size=5)) == expected

@@ -1,4 +1,7 @@
+import typing as t
+
 from monitor_server.domain.dto.abc import DTO, Attribute
+from monitor_server.domain.entities.machines import Machine
 
 
 class CreateMachine(DTO):
@@ -17,3 +20,8 @@ class CreateMachine(DTO):
 
 class NewMachineCreated(DTO):
     uid: str | None = None
+
+
+class MachineListing(DTO):
+    data: t.List[Machine]
+    next_page: int | None = Attribute(default=None)

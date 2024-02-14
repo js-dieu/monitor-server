@@ -10,3 +10,8 @@ class DTO(BaseModel):
 
     def to_dict(self) -> t.Dict[str, t.Any]:
         return self.model_dump()
+
+
+class PageableRequest(DTO):
+    page_no: int
+    page_size: int

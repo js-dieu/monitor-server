@@ -9,7 +9,7 @@ from monitor_server.domain.entities.machines import Machine
 from monitor_server.domain.entities.metrics import Metric
 from monitor_server.domain.entities.sessions import MonitorSession
 from monitor_server.infrastructure.orm.errors import ORMError
-from monitor_server.infrastructure.orm.pageable import PageableStatement
+from monitor_server.infrastructure.orm.pageable import PageableStatement, PaginatedResponse
 from monitor_server.infrastructure.orm.repositories import InMemoryRepository, SQLRepository
 from monitor_server.infrastructure.persistence.exceptions import (
     EntityAlreadyExists,
@@ -34,7 +34,7 @@ class MetricRepository:
         """Get a session given an uid"""
 
     @abc.abstractmethod
-    def list(self, page_info: PageableStatement | None = None) -> t.List[Metric]:
+    def list(self, page_info: PageableStatement | None = None) -> PaginatedResponse[t.List[Metric]]:
         """List all metrics ids"""
 
     @abc.abstractmethod
@@ -122,13 +122,23 @@ class MetricSQLRepository(MetricRepository, SQLRepository[TestMetric]):
             return ORMMapper().orm_test_metric_to_entity(row[0])
         raise EntityNotFound(f'Metric "{uid}" cannot be found', Metric, uid)
 
-    def list(self, page_info: PageableStatement | None = None) -> t.List[Metric]:
+    def list(self, page_info: PageableStatement | None = None) -> PaginatedResponse[t.List[Metric]]:
         q = self.session.query(self.model)
-        if page_info:
-            q = q.offset(page_info.offset).limit(page_info.page_size)
-        rows: t.List[TestMetric] = t.cast(t.List[TestMetric], q.all())
         mapper = ORMMapper()
-        return [mapper.orm_test_metric_to_entity(row) for row in rows or []]
+        if page_info:
+            q = q.limit(page_info.page_size).offset(page_info.offset)
+            count = self.count()
+            rows = t.cast(t.Iterable[TestMetric], q.all())
+            return page_info.build_response(
+                [mapper.orm_test_metric_to_entity(row) for row in rows or []], elements_count=count
+            )
+
+        rows = t.cast(t.Iterable[TestMetric], q.all())
+        return PaginatedResponse(
+            data=[mapper.orm_test_metric_to_entity(row) for row in rows or []],
+            page_no=None,
+            next_page=None,
+        )
 
 
 class MetricInMemRepository(MetricRepository, InMemoryRepository[TestMetric]):
@@ -183,16 +193,23 @@ class MetricInMemRepository(MetricRepository, InMemoryRepository[TestMetric]):
         )
         return item
 
-    def list(self, page_info: PageableStatement | None = None) -> t.List[Metric]:
+    def list(self, page_info: PageableStatement | None = None) -> PaginatedResponse[t.List[Metric]]:
         mapper = ORMMapper()
         if page_info is None:
-            return [
-                mapper.orm_test_metric_to_entity(metric)
-                for metric in sorted(self._data.values(), key=lambda m: m.uid.hex)
-            ]
+            return PaginatedResponse(
+                data=[
+                    mapper.orm_test_metric_to_entity(metric)
+                    for metric in sorted(self._data.values(), key=lambda m: m.uid)
+                ],
+                page_no=None,
+                next_page=None,
+            )
         page = slice(page_info.offset, page_info.offset + page_info.page_size)
         element_ids = sorted(self._data.keys())[page]
-        return [mapper.orm_test_metric_to_entity(self._data[element_id]) for element_id in element_ids]
+        return page_info.build_response(
+            data=[mapper.orm_test_metric_to_entity(self._data[element_id]) for element_id in element_ids],
+            elements_count=self.count(),
+        )
 
     def count(self) -> int:
         return super()._count()

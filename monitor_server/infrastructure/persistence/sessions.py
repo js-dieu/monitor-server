@@ -6,7 +6,7 @@ from sqlalchemy.sql import insert, select, update
 
 from monitor_server.domain.entities.sessions import MonitorSession
 from monitor_server.infrastructure.orm.errors import ORMError
-from monitor_server.infrastructure.orm.pageable import PageableStatement
+from monitor_server.infrastructure.orm.pageable import PageableStatement, PaginatedResponse
 from monitor_server.infrastructure.orm.repositories import InMemoryRepository, SQLRepository
 from monitor_server.infrastructure.persistence.exceptions import EntityAlreadyExists, EntityNotFound
 from monitor_server.infrastructure.persistence.mapper import ORMMapper
@@ -27,7 +27,7 @@ class SessionRepository:
         """Get a session given an uid"""
 
     @abc.abstractmethod
-    def list(self, page_info: PageableStatement | None = None) -> t.List[MonitorSession]:
+    def list(self, page_info: PageableStatement | None = None) -> PaginatedResponse[t.List[MonitorSession]]:
         """List all known sessions"""
 
     @abc.abstractmethod
@@ -72,13 +72,23 @@ class SessionSQLRepository(SessionRepository, SQLRepository[Session]):
             return ORMMapper().orm_session_to_entity(row[0])
         raise EntityNotFound(f'Session "{uid}" cannot be found', MonitorSession, uid)
 
-    def list(self, page_info: PageableStatement | None = None) -> t.List[MonitorSession]:
+    def list(self, page_info: PageableStatement | None = None) -> PaginatedResponse[t.List[MonitorSession]]:
         q = self.session.query(self.model)
+        mapper = ORMMapper()
         if page_info:
             q = q.limit(page_info.page_size).offset(page_info.offset)
-        rows: t.List[Session] = t.cast(t.List[Session], q.all())
-        mapper = ORMMapper()
-        return [mapper.orm_session_to_entity(row) for row in rows or []]
+            count = self.count()
+            rows = t.cast(t.Iterable[Session], q.all())
+            return page_info.build_response(
+                [mapper.orm_session_to_entity(row) for row in rows or []], elements_count=count
+            )
+
+        rows = t.cast(t.Iterable[Session], q.all())
+        return PaginatedResponse(
+            data=[mapper.orm_session_to_entity(row) for row in rows or []],
+            page_no=None,
+            next_page=None,
+        )
 
 
 class SessionInMemRepository(SessionRepository, InMemoryRepository[Session]):
@@ -105,15 +115,23 @@ class SessionInMemRepository(SessionRepository, InMemoryRepository[Session]):
         )
         return item
 
-    def list(self, page_info: PageableStatement | None = None) -> t.List[MonitorSession]:
+    def list(self, page_info: PageableStatement | None = None) -> PaginatedResponse[t.List[MonitorSession]]:
         mapper = ORMMapper()
         if page_info is None:
-            return [
-                mapper.orm_session_to_entity(session) for session in sorted(self._data.values(), key=lambda m: m.uid)
-            ]
+            return PaginatedResponse(
+                data=[
+                    mapper.orm_session_to_entity(session)
+                    for session in sorted(self._data.values(), key=lambda m: m.uid)
+                ],
+                page_no=None,
+                next_page=None,
+            )
         page = slice(page_info.offset, page_info.offset + page_info.page_size)
         element_ids = sorted(self._data.keys())[page]
-        return [mapper.orm_session_to_entity(self._data[element_id]) for element_id in element_ids]
+        return page_info.build_response(
+            data=[mapper.orm_session_to_entity(self._data[element_id]) for element_id in element_ids],
+            elements_count=self.count(),
+        )
 
     def count(self) -> int:
         return super()._count()

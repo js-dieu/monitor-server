@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from monitor_server.domain.entities.machines import Machine
 from monitor_server.infrastructure.orm.errors import ORMError
-from monitor_server.infrastructure.orm.pageable import PageableStatement
+from monitor_server.infrastructure.orm.pageable import PageableStatement, PaginatedResponse
 from monitor_server.infrastructure.orm.repositories import InMemoryRepository, SQLRepository
 from monitor_server.infrastructure.persistence.exceptions import EntityAlreadyExists, EntityNotFound
 from monitor_server.infrastructure.persistence.mapper import ORMMapper
@@ -28,7 +28,7 @@ class ExecutionContextRepository:
         """Get an execution context given an uid"""
 
     @abc.abstractmethod
-    def list(self, page_info: PageableStatement | None = None) -> t.List[Machine]:
+    def list(self, page_info: PageableStatement | None = None) -> PaginatedResponse[t.List[Machine]]:
         """List all ids of known machine"""
 
     @abc.abstractmethod
@@ -100,13 +100,23 @@ class ExecutionContextSQLRepository(ExecutionContextRepository, SQLRepository[Ex
             return ORMMapper().orm_execution_context_to_entity(row[0])
         raise EntityNotFound(f'Machine {uid} cannot be found', Machine, uid)
 
-    def list(self, page_info: PageableStatement | None = None) -> t.List[Machine]:
+    def list(self, page_info: PageableStatement | None = None) -> PaginatedResponse[t.List[Machine]]:
         q = self.session.query(self.model)
+        mapper = ORMMapper()
         if page_info:
             q = q.limit(page_info.page_size).offset(page_info.offset)
+            count = self.count()
+            rows = t.cast(t.Iterable[ExecutionContext], q.all())
+            return page_info.build_response(
+                [mapper.orm_execution_context_to_entity(row) for row in rows or []], elements_count=count
+            )
+
         rows = t.cast(t.Iterable[ExecutionContext], q.all())
-        mapper = ORMMapper()
-        return [mapper.orm_execution_context_to_entity(row) for row in rows or []]
+        return PaginatedResponse(
+            data=[mapper.orm_execution_context_to_entity(row) for row in rows or []],
+            page_no=None,
+            next_page=None,
+        )
 
 
 class ExecutionContextInMemRepository(ExecutionContextRepository, InMemoryRepository[ExecutionContext]):
@@ -131,16 +141,23 @@ class ExecutionContextInMemRepository(ExecutionContextRepository, InMemoryReposi
             raise EntityNotFound(f'Machine "{uid}" cannot be found', Machine, uid)
         return ORMMapper().orm_execution_context_to_entity(row)
 
-    def list(self, page_info: PageableStatement | None = None) -> t.List[Machine]:
+    def list(self, page_info: PageableStatement | None = None) -> PaginatedResponse[t.List[Machine]]:
         mapper = ORMMapper()
         if page_info is None:
-            return [
-                mapper.orm_execution_context_to_entity(machine)
-                for machine in sorted(self._data.values(), key=lambda m: m.uid)
-            ]
+            return PaginatedResponse(
+                data=[
+                    mapper.orm_execution_context_to_entity(machine)
+                    for machine in sorted(self._data.values(), key=lambda m: m.uid)
+                ],
+                page_no=None,
+                next_page=None,
+            )
         page = slice(page_info.offset, page_info.offset + page_info.page_size)
         element_ids = sorted(self._data.keys())[page]
-        return [mapper.orm_execution_context_to_entity(self._data[element_id]) for element_id in element_ids]
+        return page_info.build_response(
+            data=[mapper.orm_execution_context_to_entity(self._data[element_id]) for element_id in element_ids],
+            elements_count=self.count(),
+        )
 
     def count(self) -> int:
         return super()._count()

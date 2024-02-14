@@ -1,7 +1,9 @@
+import typing as t
+
 import pytest
 
 from monitor_server.domain.entities.sessions import MonitorSession
-from monitor_server.infrastructure.orm.pageable import PageableStatement
+from monitor_server.infrastructure.orm.pageable import PageableStatement, PaginatedResponse
 from monitor_server.infrastructure.persistence.exceptions import EntityAlreadyExists, EntityNotFound
 from monitor_server.infrastructure.persistence.sessions import SessionRepository
 from monitor_server.tests.sdk.persistence.generators import MonitorSessionGenerator
@@ -48,19 +50,37 @@ class TestSessionSQLRepository:
         for session in (session_generator() for _ in range(30)):
             session_sql_repo.create(session)
             expected.append(session)
-        assert session_sql_repo.list() == sorted(expected, key=lambda m: m.uid)
+        assert session_sql_repo.list() == PaginatedResponse[t.List[MonitorSession]](
+            data=sorted(expected, key=lambda m: m.uid), page_no=None, next_page=None
+        )
 
     def test_it_lists_all_sessions_in_the_given_page(
         self,
         session_sql_repo: SessionRepository,
     ):
         session_generator: MonitorSessionGenerator = MonitorSessionGenerator()
-        expected = []
+        sessions = []
         for session in (session_generator() for _ in range(30)):
             session_sql_repo.create(session)
-            expected.append(session)
-        expected = sorted(expected, key=lambda m: m.uid)[25:30]
+            sessions.append(session)
+        sessions = sorted(sessions, key=lambda m: m.uid)[25:30]
+
+        expected = PaginatedResponse[t.List[MonitorSession]](data=sessions, page_no=5, next_page=None)
         assert session_sql_repo.list(PageableStatement(page_no=5, page_size=5)) == expected
+
+    def test_it_lists_all_sessions_in_the_given_page_and_provide_next_page_info(
+        self,
+        session_sql_repo: SessionRepository,
+    ):
+        session_generator: MonitorSessionGenerator = MonitorSessionGenerator()
+        sessions = []
+        for session in (session_generator() for _ in range(30)):
+            session_sql_repo.create(session)
+            sessions.append(session)
+        expected = PaginatedResponse[t.List[MonitorSession]](
+            data=list(sorted(sessions, key=lambda m: m.uid)[20:25]), page_no=4, next_page=5
+        )
+        assert session_sql_repo.list(PageableStatement(page_no=4, page_size=5)) == expected
 
     def test_it_lists_no_element_when_out_of_bounds(
         self,
@@ -71,7 +91,9 @@ class TestSessionSQLRepository:
         for session in (session_generator() for _ in range(30)):
             session_sql_repo.create(session)
             expected.append(session)
-        assert session_sql_repo.list(PageableStatement(page_no=10, page_size=5)) == []
+        assert session_sql_repo.list(PageableStatement(page_no=10, page_size=5)) == PaginatedResponse[
+            t.List[MonitorSession]
+        ](data=[], page_no=10, next_page=None)
 
 
 class TestSessionInMemoryRepository:
@@ -114,19 +136,37 @@ class TestSessionInMemoryRepository:
         for session in (session_generator() for _ in range(30)):
             session_in_mem_repo.create(session)
             expected.append(session)
-        assert session_in_mem_repo.list() == sorted(expected, key=lambda m: m.uid)
+        assert session_in_mem_repo.list() == PaginatedResponse[t.List[MonitorSession]](
+            data=sorted(expected, key=lambda m: m.uid), page_no=None, next_page=None
+        )
 
     def test_it_lists_all_sessions_in_the_given_page(
         self,
         session_in_mem_repo: SessionRepository,
     ):
         session_generator: MonitorSessionGenerator = MonitorSessionGenerator()
-        expected = []
+        sessions = []
         for session in (session_generator() for _ in range(30)):
             session_in_mem_repo.create(session)
-            expected.append(session)
-        expected = sorted(expected, key=lambda m: m.uid)[25:30]
+            sessions.append(session)
+        sessions = sorted(sessions, key=lambda m: m.uid)[25:30]
+
+        expected = PaginatedResponse[t.List[MonitorSession]](data=sessions, page_no=5, next_page=None)
         assert session_in_mem_repo.list(PageableStatement(page_no=5, page_size=5)) == expected
+
+    def test_it_lists_all_sessions_in_the_given_page_and_provide_next_page_info(
+        self,
+        session_in_mem_repo: SessionRepository,
+    ):
+        session_generator: MonitorSessionGenerator = MonitorSessionGenerator()
+        sessions = []
+        for session in (session_generator() for _ in range(30)):
+            session_in_mem_repo.create(session)
+            sessions.append(session)
+        expected = PaginatedResponse[t.List[MonitorSession]](
+            data=list(sorted(sessions, key=lambda m: m.uid)[20:25]), page_no=4, next_page=5
+        )
+        assert session_in_mem_repo.list(PageableStatement(page_no=4, page_size=5)) == expected
 
     def test_it_lists_no_element_when_out_of_bounds(
         self,
@@ -137,4 +177,6 @@ class TestSessionInMemoryRepository:
         for session in (session_generator() for _ in range(30)):
             session_in_mem_repo.create(session)
             expected.append(session)
-        assert session_in_mem_repo.list(PageableStatement(page_no=10, page_size=5)) == []
+        assert session_in_mem_repo.list(PageableStatement(page_no=10, page_size=5)) == PaginatedResponse[
+            t.List[MonitorSession]
+        ](data=[], page_no=10, next_page=None)

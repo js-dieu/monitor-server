@@ -1,3 +1,4 @@
+import typing as t
 import uuid
 
 import pytest
@@ -5,7 +6,7 @@ import pytest
 from monitor_server.domain.entities.machines import Machine
 from monitor_server.domain.entities.metrics import Metric
 from monitor_server.domain.entities.sessions import MonitorSession
-from monitor_server.infrastructure.orm.pageable import PageableStatement
+from monitor_server.infrastructure.orm.pageable import PageableStatement, PaginatedResponse
 from monitor_server.infrastructure.persistence.exceptions import (
     EntityAlreadyExists,
     EntityNotFound,
@@ -123,11 +124,14 @@ class TestMetricSQLRepository:
         metric_generator: MetricGenerator = MetricGenerator(
             a_session.start_date, lambda _: a_session.uid, lambda _: a_machine.uid
         )
-        expected = []
+        metrics = []
         for metric in (metric_generator(offset_from_start_date_sec=i) for i in range(30)):
             metric_sql_repo.create(metric)
-            expected.append(metric)
-        assert metric_sql_repo.list() == sorted(expected, key=lambda m: m.uid.hex)
+            metrics.append(metric)
+        expected = PaginatedResponse[t.List[Metric]](
+            data=sorted(metrics, key=lambda m: m.uid.hex), page_no=None, next_page=None
+        )
+        assert metric_sql_repo.list() == expected
 
     def test_it_lists_all_metrics_in_the_given_page(
         self,
@@ -141,12 +145,35 @@ class TestMetricSQLRepository:
         metric_generator: MetricGenerator = MetricGenerator(
             a_session.start_date, lambda _: a_session.uid, lambda _: a_machine.uid
         )
-        expected = []
+        metrics = []
         for metric in (metric_generator(offset_from_start_date_sec=i) for i in range(30)):
             metric_sql_repo.create(metric)
-            expected.append(metric)
-        expected = sorted(expected, key=lambda m: m.uid.hex)[25:30]
+            metrics.append(metric)
+        expected = PaginatedResponse[t.List[Metric]](
+            data=sorted(metrics, key=lambda m: m.uid.hex)[25:30], page_no=5, next_page=None
+        )
         assert metric_sql_repo.list(PageableStatement(page_no=5, page_size=5)) == expected
+
+    def test_it_lists_all_metrics_in_the_given_page_and_provide_next_page_info(
+        self,
+        metrics_sql_service: MonitoringMetricsService,
+        metric_sql_repo: MetricRepository,
+        a_session: MonitorSession,
+        a_machine: Machine,
+    ):
+        metrics_sql_service.add_session(a_session)
+        metrics_sql_service.add_machine(a_machine)
+        metric_generator: MetricGenerator = MetricGenerator(
+            a_session.start_date, lambda _: a_session.uid, lambda _: a_machine.uid
+        )
+        metrics = []
+        for metric in (metric_generator(offset_from_start_date_sec=i) for i in range(30)):
+            metric_sql_repo.create(metric)
+            metrics.append(metric)
+        expected = PaginatedResponse[t.List[Metric]](
+            data=sorted(metrics, key=lambda m: m.uid.hex)[15:20], page_no=3, next_page=4
+        )
+        assert metric_sql_repo.list(PageableStatement(page_no=3, page_size=5)) == expected
 
     def test_it_lists_no_element_when_out_of_bounds(
         self,
@@ -162,7 +189,9 @@ class TestMetricSQLRepository:
         )
         for metric in (metric_generator(offset_from_start_date_sec=i) for i in range(30)):
             metric_sql_repo.create(metric)
-        assert metric_sql_repo.list(PageableStatement(page_no=10, page_size=5)) == []
+        assert metric_sql_repo.list(PageableStatement(page_no=10, page_size=5)) == PaginatedResponse[t.List[Metric]](
+            data=[], next_page=None, page_no=10
+        )
 
 
 class TestMetricInMemRepository:
@@ -208,36 +237,82 @@ class TestMetricInMemRepository:
         assert metric_in_mem_repo.count() == 3
 
     def test_it_lists_all_metrics_when_no_page_info_is_given(
-        self, metric_in_mem_repo: MetricRepository, a_session: MonitorSession, a_machine: Machine
+        self,
+        metrics_in_mem_service: MonitoringMetricsService,
+        metric_in_mem_repo: MetricRepository,
+        a_session: MonitorSession,
+        a_machine: Machine,
     ):
+        metrics_in_mem_service.add_session(a_session)
+        metrics_in_mem_service.add_machine(a_machine)
         metric_generator: MetricGenerator = MetricGenerator(
             a_session.start_date, lambda _: a_session.uid, lambda _: a_machine.uid
         )
-        expected = []
+        metrics = []
         for metric in (metric_generator(offset_from_start_date_sec=i) for i in range(30)):
             metric_in_mem_repo.create(metric)
-            expected.append(metric)
-        assert metric_in_mem_repo.list() == sorted(expected, key=lambda m: m.uid.hex)
+            metrics.append(metric)
+        expected = PaginatedResponse[t.List[Metric]](
+            data=sorted(metrics, key=lambda m: m.uid.hex), page_no=None, next_page=None
+        )
+        assert metric_in_mem_repo.list() == expected
 
     def test_it_lists_all_metrics_in_the_given_page(
-        self, metric_in_mem_repo: MetricRepository, a_session: MonitorSession, a_machine: Machine
+        self,
+        metrics_in_mem_service: MonitoringMetricsService,
+        metric_in_mem_repo: MetricRepository,
+        a_session: MonitorSession,
+        a_machine: Machine,
     ):
+        metrics_in_mem_service.add_session(a_session)
+        metrics_in_mem_service.add_machine(a_machine)
         metric_generator: MetricGenerator = MetricGenerator(
             a_session.start_date, lambda _: a_session.uid, lambda _: a_machine.uid
         )
-        expected = []
+        metrics = []
         for metric in (metric_generator(offset_from_start_date_sec=i) for i in range(30)):
             metric_in_mem_repo.create(metric)
-            expected.append(metric)
-        expected = sorted(expected, key=lambda m: m.uid.hex)[25:30]
+            metrics.append(metric)
+        expected = PaginatedResponse[t.List[Metric]](
+            data=sorted(metrics, key=lambda m: m.uid.hex)[25:30], page_no=5, next_page=None
+        )
         assert metric_in_mem_repo.list(PageableStatement(page_no=5, page_size=5)) == expected
 
-    def test_it_lists_no_element_when_out_of_bounds(
-        self, metric_in_mem_repo: MetricRepository, a_session: MonitorSession, a_machine: Machine
+    def test_it_lists_all_metrics_in_the_given_page_and_provide_next_page_info(
+        self,
+        metrics_in_mem_service: MonitoringMetricsService,
+        metric_in_mem_repo: MetricRepository,
+        a_session: MonitorSession,
+        a_machine: Machine,
     ):
+        metrics_in_mem_service.add_session(a_session)
+        metrics_in_mem_service.add_machine(a_machine)
+        metric_generator: MetricGenerator = MetricGenerator(
+            a_session.start_date, lambda _: a_session.uid, lambda _: a_machine.uid
+        )
+        metrics = []
+        for metric in (metric_generator(offset_from_start_date_sec=i) for i in range(30)):
+            metric_in_mem_repo.create(metric)
+            metrics.append(metric)
+        expected = PaginatedResponse[t.List[Metric]](
+            data=sorted(metrics, key=lambda m: m.uid.hex)[15:20], page_no=3, next_page=4
+        )
+        assert metric_in_mem_repo.list(PageableStatement(page_no=3, page_size=5)) == expected
+
+    def test_it_lists_no_element_when_out_of_bounds(
+        self,
+        metrics_in_mem_service: MonitoringMetricsService,
+        metric_in_mem_repo: MetricRepository,
+        a_session: MonitorSession,
+        a_machine: Machine,
+    ):
+        metrics_in_mem_service.add_session(a_session)
+        metrics_in_mem_service.add_machine(a_machine)
         metric_generator: MetricGenerator = MetricGenerator(
             a_session.start_date, lambda _: a_session.uid, lambda _: a_machine.uid
         )
         for metric in (metric_generator(offset_from_start_date_sec=i) for i in range(30)):
             metric_in_mem_repo.create(metric)
-        assert metric_in_mem_repo.list(PageableStatement(page_no=10, page_size=5)) == []
+        assert metric_in_mem_repo.list(PageableStatement(page_no=10, page_size=5)) == PaginatedResponse[t.List[Metric]](
+            data=[], next_page=None, page_no=10
+        )
