@@ -13,19 +13,34 @@ from monitor_server.infrastructure.persistence.exceptions import (
 )
 from monitor_server.infrastructure.persistence.machines import (
     ExecutionContextInMemRepository,
+    ExecutionContextRepository,
     ExecutionContextSQLRepository,
 )
 from monitor_server.infrastructure.persistence.metrics import (
     MetricInMemRepository,
+    MetricRepository,
     MetricSQLRepository,
 )
 from monitor_server.infrastructure.persistence.sessions import (
     SessionInMemRepository,
+    SessionRepository,
     SessionSQLRepository,
 )
 
 
 class MonitoringMetricsService(abc.ABC):
+    @abc.abstractmethod
+    def metric_repository(self) -> MetricRepository:
+        """Direct access to the metric repository"""
+
+    @abc.abstractmethod
+    def session_repository(self) -> SessionRepository:
+        """Direct access to the metric repository"""
+
+    @abc.abstractmethod
+    def machine_repository(self) -> ExecutionContextRepository:
+        """Direct access to the metric repository"""
+
     @abc.abstractmethod
     def add_metrics(
         self, metrics: t.List[Metric], session: MonitorSession | None = None, machine: Machine | None = None
@@ -68,6 +83,15 @@ class MonitoringMetricsSQLService(MonitoringMetricsService):
         self._metric_repo = MetricSQLRepository(self._session)
         self._session_repo = SessionSQLRepository(self._session)
         self._node_repo = ExecutionContextSQLRepository(self._session)
+
+    def metric_repository(self) -> MetricRepository:
+        return self._metric_repo
+
+    def session_repository(self) -> SessionRepository:
+        return self._session_repo
+
+    def machine_repository(self) -> ExecutionContextRepository:
+        return self._node_repo
 
     def add_machine(self, machine: Machine) -> Machine:
         return self._node_repo.create(machine)
@@ -114,6 +138,15 @@ class MonitoringMetricsInMemService(MonitoringMetricsService):
         self._metric_repo = MetricInMemRepository()
         self._session_repo = SessionInMemRepository()
         self._node_repo = ExecutionContextInMemRepository()
+
+    def metric_repository(self) -> MetricRepository:
+        return self._metric_repo
+
+    def session_repository(self) -> SessionRepository:
+        return self._session_repo
+
+    def machine_repository(self) -> ExecutionContextRepository:
+        return self._node_repo
 
     def add_machine(self, machine: Machine) -> Machine:
         return self._node_repo.create(machine)

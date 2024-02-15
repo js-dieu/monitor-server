@@ -13,5 +13,9 @@ class DTO(BaseModel):
 
 
 class PageableRequest(DTO):
-    page_no: int
-    page_size: int
+    page_no: int = Field(default=0)
+    page_size: int = Field(default=0)
+
+    @property
+    def with_pagination(self) -> bool:
+        return self.page_size > 0

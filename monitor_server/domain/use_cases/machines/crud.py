@@ -32,7 +32,10 @@ class ListMachine(UseCase[PageableRequest, MachineListing]):
 
     def execute(self, input_dto: PageableRequest) -> MachineListing:
         try:
-            result = self._repository.list(PageableStatement(page_no=input_dto.page_no, page_size=input_dto.page_size))
+            page_info = None
+            if input_dto.with_pagination:
+                page_info = PageableStatement(page_no=input_dto.page_no, page_size=input_dto.page_size)
+            result = self._repository.list(page_info)
             return MachineListing(data=result.data, next_page=result.next_page)
         except ORMError as e:
             raise UseCaseError(str(e)) from e
