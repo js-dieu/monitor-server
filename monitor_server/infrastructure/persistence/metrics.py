@@ -151,7 +151,7 @@ class MetricInMemRepository(MetricRepository, InMemoryRepository[TestMetric]):
 
     def create(self, item: Metric) -> Metric:
         if item.uid.hex in self._data:
-            raise EntityAlreadyExists(f'Metric "{item.uid.hex} already exists', Metric, item.uid.hex)
+            raise EntityAlreadyExists(f'Metric "{item.uid.hex}" already exists', Metric, item.uid.hex)
         self._data[item.uid.hex] = TestMetric(
             uid=item.uid,
             sid=item.session_id,
