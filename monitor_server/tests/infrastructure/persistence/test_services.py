@@ -1,3 +1,5 @@
+import datetime
+
 import pytest
 
 from monitor_server.domain.entities.machines import Machine
@@ -11,7 +13,7 @@ from monitor_server.infrastructure.persistence.exceptions import (
 from monitor_server.infrastructure.persistence.services import (
     MonitoringMetricsService,
 )
-from monitor_server.tests.sdk.persistence.generators import MetricGenerator
+from monitor_server.tests.sdk.persistence.generators import MachineGenerator, MetricGenerator, MonitorSessionGenerator
 
 
 class TestMonitoringMetricsService:
@@ -147,3 +149,35 @@ class TestMonitoringMetricsService:
     ):
         with pytest.raises(EntityNotFound, match='abcd'):
             metrics_service.get_machine('abcd')
+
+    def test_it_counts_the_number_of_sessions(self, metrics_service: MonitoringMetricsService):
+        sessions_generator = MonitorSessionGenerator()
+        sessions = [sessions_generator() for _ in range(30)]
+        for session in sessions:
+            metrics_service.add_session(session)
+        assert len(sessions) == metrics_service.count_sessions()
+
+    def test_it_counts_the_number_of_metrics(self, metrics_service: MonitoringMetricsService):
+        sessions_generator, machine_generator = MonitorSessionGenerator(), MachineGenerator()
+        now = datetime.datetime.now(tz=datetime.UTC)
+        sessions = [sessions_generator(start_time=now) for _ in range(5)]
+        machines = [machine_generator() for _ in range(2)]
+        for session in sessions:
+            metrics_service.add_session(session)
+        for machine in machines:
+            metrics_service.add_machine(machine)
+        metrics_generator = MetricGenerator(
+            start_date=now,
+            session_uid_cb=lambda step: sessions[step % 5].uid,
+            machine_uid_cb=lambda step: machines[step % 2].uid,
+        )
+        metrics = [metrics_generator() for _ in range(50)]
+        metrics_service.add_metrics(metrics)
+        assert len(metrics) == metrics_service.count_metrics()
+
+    def test_it_counts_the_number_of_machines(self, metrics_service: MonitoringMetricsService):
+        machines_generator = MachineGenerator()
+        machines = [machines_generator() for _ in range(30)]
+        for machine in machines:
+            metrics_service.add_machine(machine)
+        assert len(machines) == metrics_service.count_machines()

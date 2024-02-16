@@ -75,6 +75,18 @@ class MonitoringMetricsService(abc.ABC):
     def truncate_all(self) -> None:
         """Remove all data"""
 
+    @abc.abstractmethod
+    def count_sessions(self) -> int:
+        """Count the number of sessions"""
+
+    @abc.abstractmethod
+    def count_metrics(self) -> int:
+        """Count the number of metrics"""
+
+    @abc.abstractmethod
+    def count_machines(self) -> int:
+        """count the number of machines/execution contexts"""
+
 
 class MonitoringMetricsSQLService(MonitoringMetricsService):
     def __init__(self, orm_engine: ORMEngine) -> None:
@@ -83,6 +95,15 @@ class MonitoringMetricsSQLService(MonitoringMetricsService):
         self._metric_repo = MetricSQLRepository(self._session)
         self._session_repo = SessionSQLRepository(self._session)
         self._node_repo = ExecutionContextSQLRepository(self._session)
+
+    def count_sessions(self) -> int:
+        return self._session_repo.count()
+
+    def count_metrics(self) -> int:
+        return self._metric_repo.count()
+
+    def count_machines(self) -> int:
+        return self._node_repo.count()
 
     def metric_repository(self) -> MetricRepository:
         return self._metric_repo
@@ -138,6 +159,15 @@ class MonitoringMetricsInMemService(MonitoringMetricsService):
         self._metric_repo = MetricInMemRepository()
         self._session_repo = SessionInMemRepository()
         self._node_repo = ExecutionContextInMemRepository()
+
+    def count_sessions(self) -> int:
+        return self._session_repo.count()
+
+    def count_metrics(self) -> int:
+        return self._metric_repo.count()
+
+    def count_machines(self) -> int:
+        return self._node_repo.count()
 
     def metric_repository(self) -> MetricRepository:
         return self._metric_repo
