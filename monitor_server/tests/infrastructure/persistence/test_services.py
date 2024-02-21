@@ -2,9 +2,9 @@ import datetime
 
 import pytest
 
-from monitor_server.domain.entities.machines import Machine
-from monitor_server.domain.entities.metrics import Metric
-from monitor_server.domain.entities.sessions import MonitorSession
+from monitor_server.domain.models.machines import Machine
+from monitor_server.domain.models.metrics import Metric
+from monitor_server.domain.models.sessions import MonitorSession
 from monitor_server.infrastructure.persistence.exceptions import (
     EntityAlreadyExists,
     EntityNotFound,
@@ -36,7 +36,7 @@ class TestMonitoringMetricsService:
         a_machine: Machine,
     ):
         metrics_service.add_machine(a_machine)
-        msg = f'Session {a_session.uid} cannot be found. Metric {a_valid_metric.uid.hex} cannot be inserted'
+        msg = f'Session {a_session.uid.hex} cannot be found. Metric {a_valid_metric.uid.hex} cannot be inserted'
         with pytest.raises(LinkedEntityMissing, match=msg):
             metrics_service.add_metric(a_valid_metric)
 
@@ -49,7 +49,8 @@ class TestMonitoringMetricsService:
     ):
         metrics_service.add_session(a_session)
         msg = (
-            f'Execution Context {a_machine.uid} cannot be found.' f' Metric {a_valid_metric.uid.hex} cannot be inserted'
+            f'Execution Context {a_machine.uid.hex} cannot be found.'
+            f' Metric {a_valid_metric.uid.hex} cannot be inserted'
         )
         with pytest.raises(LinkedEntityMissing, match=msg):
             metrics_service.add_metric(a_valid_metric)
@@ -74,11 +75,11 @@ class TestMonitoringMetricsService:
     ):
         def get_session_id(step: int) -> str:
             if step == 10:
-                return a_session.uid[::-1]
-            return a_session.uid
+                return a_session.uid.hex[::-1]
+            return a_session.uid.hex
 
         def get_machine_id(_: int) -> str:
-            return a_machine.uid
+            return a_machine.uid.hex
 
         generator = MetricGenerator(a_session.start_date, get_session_id, get_machine_id)
         metrics = [generator() for _ in range(20)]
@@ -95,12 +96,12 @@ class TestMonitoringMetricsService:
         a_machine: Machine,
     ):
         def get_session_id(_: int) -> str:
-            return a_session.uid
+            return a_session.uid.hex
 
         def get_machine_id(step: int) -> str:
             if step == 10:
-                return a_machine.uid[::-1]
-            return a_machine.uid
+                return a_machine.uid.hex[::-1]
+            return a_machine.uid.hex
 
         generator = MetricGenerator(a_session.start_date, get_session_id, get_machine_id)
         metrics = [generator() for _ in range(20)]
@@ -116,7 +117,7 @@ class TestMonitoringMetricsService:
         a_session: MonitorSession,
         a_machine: Machine,
     ):
-        generator = MetricGenerator(a_session.start_date, lambda _: a_session.uid, lambda _: a_machine.uid)
+        generator = MetricGenerator(a_session.start_date, lambda _: a_session.uid.hex, lambda _: a_machine.uid.hex)
         metrics = [generator() for _ in range(20)]
         assert metrics_service.add_metrics(metrics, session=a_session, machine=a_machine) == 20
 
@@ -168,8 +169,8 @@ class TestMonitoringMetricsService:
             metrics_service.add_machine(machine)
         metrics_generator = MetricGenerator(
             start_date=now,
-            session_uid_cb=lambda step: sessions[step % 5].uid,
-            machine_uid_cb=lambda step: machines[step % 2].uid,
+            session_uid_cb=lambda step: sessions[step % 5].uid.hex,
+            machine_uid_cb=lambda step: machines[step % 2].uid.hex,
         )
         metrics = [metrics_generator() for _ in range(50)]
         metrics_service.add_metrics(metrics)

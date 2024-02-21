@@ -1,10 +1,10 @@
 import abc
 import typing as t
 
-from monitor_server.domain.dto.abc import DTO
+from monitor_server.domain.models.abc import Model
 
-INPUT = t.TypeVar('INPUT', bound=DTO)
-OUTPUT = t.TypeVar('OUTPUT', bound=DTO)
+INPUT = t.TypeVar('INPUT', bound=Model)
+OUTPUT = t.TypeVar('OUTPUT', bound=Model)
 
 
 class UseCase(t.Generic[INPUT, OUTPUT], abc.ABC):

@@ -3,9 +3,9 @@ import uuid
 
 import pytest
 
-from monitor_server.domain.entities.machines import Machine
-from monitor_server.domain.entities.metrics import Metric
-from monitor_server.domain.entities.sessions import MonitorSession
+from monitor_server.domain.models.machines import Machine
+from monitor_server.domain.models.metrics import Metric
+from monitor_server.domain.models.sessions import MonitorSession
 from monitor_server.infrastructure.orm.pageable import PageableStatement, PaginatedResponse
 from monitor_server.infrastructure.persistence.exceptions import (
     EntityAlreadyExists,
@@ -39,7 +39,7 @@ class TestMetricRepository:
         a_valid_metric: Metric,
     ):
         metrics_sql_service.add_machine(a_machine)
-        msg = f'Session {a_session.uid} cannot be found. Metric {a_valid_metric.uid.hex} cannot be inserted'
+        msg = f'Session {a_session.uid.hex} cannot be found. Metric {a_valid_metric.uid.hex} cannot be inserted'
         with pytest.raises(LinkedEntityMissing, match=msg):
             metrics_sql_service.metric_repository().create(a_valid_metric)
 
@@ -52,7 +52,8 @@ class TestMetricRepository:
     ):
         metrics_sql_service.add_session(a_session)
         msg = (
-            f'Execution Context {a_machine.uid} cannot be found.' f' Metric {a_valid_metric.uid.hex} cannot be inserted'
+            f'Execution Context {a_machine.uid.hex} cannot be found.'
+            f' Metric {a_valid_metric.uid.hex} cannot be inserted'
         )
         with pytest.raises(LinkedEntityMissing, match=msg):
             metrics_sql_service.metric_repository().create(a_valid_metric)
@@ -100,7 +101,7 @@ class TestMetricRepository:
         metrics_service.add_session(a_session)
         metrics_service.add_machine(a_machine)
         metric_generator: MetricGenerator = MetricGenerator(
-            a_session.start_date, lambda _: a_session.uid, lambda _: a_machine.uid
+            a_session.start_date, lambda _: a_session.uid.hex, lambda _: a_machine.uid.hex
         )
         for metric in (metric_generator(offset_from_start_date_sec=i) for i in range(3)):
             metrics_service.metric_repository().create(metric)
@@ -113,7 +114,7 @@ class TestMetricRepository:
         a_machine: Machine,
     ):
         metric_generator: MetricGenerator = MetricGenerator(
-            a_session.start_date, lambda _: a_session.uid, lambda _: a_machine.uid
+            a_session.start_date, lambda _: a_session.uid.hex, lambda _: a_machine.uid.hex
         )
         metrics = [metric_generator(offset_from_start_date_sec=i) for i in range(30)]
         metrics_service.add_metrics(metrics, a_session, a_machine)
@@ -129,7 +130,7 @@ class TestMetricRepository:
         a_machine: Machine,
     ):
         metric_generator: MetricGenerator = MetricGenerator(
-            a_session.start_date, lambda _: a_session.uid, lambda _: a_machine.uid
+            a_session.start_date, lambda _: a_session.uid.hex, lambda _: a_machine.uid.hex
         )
         metrics = [metric_generator(offset_from_start_date_sec=i) for i in range(30)]
         metrics_service.add_metrics(metrics, a_session, a_machine)
@@ -145,7 +146,7 @@ class TestMetricRepository:
         a_machine: Machine,
     ):
         metric_generator: MetricGenerator = MetricGenerator(
-            a_session.start_date, lambda _: a_session.uid, lambda _: a_machine.uid
+            a_session.start_date, lambda _: a_session.uid.hex, lambda _: a_machine.uid.hex
         )
         metrics = [metric_generator(offset_from_start_date_sec=i) for i in range(30)]
         metrics_service.add_metrics(metrics, a_session, a_machine)
@@ -161,7 +162,7 @@ class TestMetricRepository:
         a_machine: Machine,
     ):
         metric_generator: MetricGenerator = MetricGenerator(
-            a_session.start_date, lambda _: a_session.uid, lambda _: a_machine.uid
+            a_session.start_date, lambda _: a_session.uid.hex, lambda _: a_machine.uid.hex
         )
         metrics_service.add_metrics(
             [metric_generator(offset_from_start_date_sec=i) for i in range(30)], a_session, a_machine

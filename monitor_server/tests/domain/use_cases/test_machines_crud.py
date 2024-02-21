@@ -1,7 +1,7 @@
 import pytest
 
-from monitor_server.domain.dto.abc import PageableRequest
-from monitor_server.domain.dto.machines import CreateMachine, MachineListing, NewMachineCreated
+from monitor_server.domain.models.abc import PageableRequest
+from monitor_server.domain.models.machines import Machine, MachineListing, NewMachineCreated
 from monitor_server.domain.use_cases.machines.crud import AddMachine, ListMachine, MachineAlreadyExists
 from monitor_server.infrastructure.persistence.machines import ExecutionContextRepository
 from monitor_server.tests.sdk.persistence.generators import MachineGenerator
@@ -10,57 +10,39 @@ from monitor_server.tests.sdk.persistence.generators import MachineGenerator
 class TestAddMachine:
     def test_it_return_ok_when_the_machine_is_valid(self, execution_context_repository: ExecutionContextRepository):
         use_case = AddMachine(execution_context_repository)
-        assert use_case.execute(
-            CreateMachine(
-                uid='abcd',
-                cpu_frequency=1024,
-                cpu_vendor='cpu_vendor',
-                cpu_count=32,
-                cpu_type='cpu_type',
-                total_ram=2048,
-                hostname='hostname',
-                machine_type='type',
-                machine_arch='arch',
-                system_info='system info',
-                python_info='python info',
-            )
-        ) == NewMachineCreated(uid='abcd')
+        a_machine = Machine(
+            cpu_frequency=1024,
+            cpu_vendor='cpu_vendor',
+            cpu_count=32,
+            cpu_type='cpu_type',
+            total_ram=2048,
+            hostname='hostname',
+            machine_type='type',
+            machine_arch='arch',
+            system_info='system info',
+            python_info='python info',
+        )
+        assert use_case.execute(a_machine) == NewMachineCreated(uid=a_machine.uid.hex)
 
     def test_it_raises_machine_already_exists_when_the_machine_already_exists(
         self, execution_context_repository: ExecutionContextRepository
     ):
         use_case = AddMachine(execution_context_repository)
-        use_case.execute(
-            CreateMachine(
-                uid='abcd',
-                cpu_frequency=1024,
-                cpu_vendor='cpu_vendor',
-                cpu_count=32,
-                cpu_type='cpu_type',
-                total_ram=2048,
-                hostname='hostname',
-                machine_type='type',
-                machine_arch='arch',
-                system_info='system info',
-                python_info='python info',
-            )
+        a_machine = Machine(
+            cpu_frequency=1024,
+            cpu_vendor='cpu_vendor',
+            cpu_count=32,
+            cpu_type='cpu_type',
+            total_ram=2048,
+            hostname='hostname',
+            machine_type='type',
+            machine_arch='arch',
+            system_info='system info',
+            python_info='python info',
         )
-        with pytest.raises(MachineAlreadyExists, match='Machine "abcd" already exists'):
-            use_case.execute(
-                CreateMachine(
-                    uid='abcd',
-                    cpu_frequency=1024,
-                    cpu_vendor='cpu_vendor',
-                    cpu_count=32,
-                    cpu_type='cpu_type',
-                    total_ram=2048,
-                    hostname='hostname',
-                    machine_type='type',
-                    machine_arch='arch',
-                    system_info='system info',
-                    python_info='python info',
-                )
-            )
+        use_case.execute(a_machine)
+        with pytest.raises(MachineAlreadyExists, match=f'Machine "{a_machine.uid.hex}" already exists'):
+            use_case.execute(a_machine)
 
 
 class TestListMachine:

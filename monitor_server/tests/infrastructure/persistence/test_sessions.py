@@ -2,7 +2,7 @@ import typing as t
 
 import pytest
 
-from monitor_server.domain.entities.sessions import MonitorSession
+from monitor_server.domain.models.sessions import MonitorSession
 from monitor_server.infrastructure.orm.pageable import PageableStatement, PaginatedResponse
 from monitor_server.infrastructure.persistence.exceptions import EntityAlreadyExists, EntityNotFound
 from monitor_server.infrastructure.persistence.sessions import SessionRepository
@@ -19,26 +19,26 @@ class TestSessionRepository:
         self, session_repository: SessionRepository, a_session: MonitorSession
     ):
         session_repository.create(a_session)
-        with pytest.raises(EntityAlreadyExists, match='abcd'):
+        with pytest.raises(EntityAlreadyExists, match=a_session.uid.hex):
             session_repository.create(a_session)
 
     def test_it_returns_a_session_when_querying_a_known_uid(
         self, session_repository: SessionRepository, a_session: MonitorSession
     ):
         session_repository.create(a_session)
-        assert session_repository.get(a_session.uid)
+        assert session_repository.get(a_session.uid.hex)
 
     def test_it_raises_entity_not_found_when_querying_a_unknown_uid(
         self, session_repository: SessionRepository, a_session: MonitorSession
     ):
-        with pytest.raises(EntityNotFound, match=f'Session "{a_session.uid}" cannot be found'):
-            session_repository.get(a_session.uid)
+        with pytest.raises(EntityNotFound, match=f'Session "{a_session.uid.hex}" cannot be found'):
+            session_repository.get(a_session.uid.hex)
 
     def test_update_on_tags_updates_the_entity(self, session_repository: SessionRepository, a_session: MonitorSession):
         session_repository.create(a_session)
         a_session.tags['in_test'] = True
         session_repository.update(a_session)
-        assert sorted(session_repository.get(a_session.uid).tags) == sorted(a_session.tags)
+        assert sorted(session_repository.get(a_session.uid.hex).tags) == sorted(a_session.tags)
 
     def test_it_lists_all_sessions_when_no_page_info_is_given(
         self,

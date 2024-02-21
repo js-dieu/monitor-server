@@ -1,13 +1,11 @@
 import pathlib
 import typing as t
 from datetime import datetime
-from uuid import UUID, uuid4
 
-from monitor_server.domain.entities.abc import Attribute, Entity
+from monitor_server.domain.models.abc import Attribute, Entity, Model
 
 
 class Metric(Entity):
-    uid: UUID = Attribute(default_factory=uuid4)
     session_id: str
     node_id: str
     item_start_time: datetime
@@ -45,3 +43,12 @@ class Metric(Entity):
             )
 
         return False
+
+
+class NewMetricCreated(Model):
+    uid: str | None = Attribute(default=None)
+
+
+class MetricsListing(Model):
+    data: t.List[Metric]
+    next_page: int | None = Attribute(default=None)

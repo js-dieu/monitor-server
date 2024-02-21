@@ -4,9 +4,9 @@ import pathlib
 import typing as t
 from uuid import UUID, uuid4
 
-from monitor_server.domain.entities.machines import Machine
-from monitor_server.domain.entities.metrics import Metric
-from monitor_server.domain.entities.sessions import MonitorSession
+from monitor_server.domain.models.machines import Machine
+from monitor_server.domain.models.metrics import Metric
+from monitor_server.domain.models.sessions import MonitorSession
 
 EntityIdCallBack = t.Callable[[int], str]
 
@@ -76,7 +76,7 @@ class MachineGenerator:
     ) -> Machine:
         step = next(self._counter)
         return Machine(
-            uid=uid().hex,
+            uid=uid(),
             cpu_frequency=cpu_frequency or 1024,
             cpu_vendor=cpu_vendor or 'cpu_vendor',
             cpu_count=cpu_count or 32,
@@ -106,7 +106,7 @@ class MonitorSessionGenerator:
         _tags = {'description': description or f'run {step}', 'step': step}
         _tags = _tags | (tags or {})
         return MonitorSession(
-            uid=uid().hex,
+            uid=uid(),
             scm_revision=scm_revision or '1a2506cf9f662000484c535b33dc73d52e067510',
             start_date=start_time or datetime.datetime(2024, 2, 12, 14, 41, 55, 65894, tzinfo=datetime.UTC),
             tags=_tags,

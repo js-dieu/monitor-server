@@ -1,4 +1,4 @@
-from monitor_server.domain.dto.common import CountInfo
+from monitor_server.domain.models.common import CountInfo
 from monitor_server.domain.use_cases.abc import UseCaseWithoutInput
 from monitor_server.domain.use_cases.exceptions import UseCaseError
 from monitor_server.infrastructure.orm.errors import ORMError

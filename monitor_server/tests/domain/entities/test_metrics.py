@@ -4,7 +4,7 @@ import uuid
 
 import pytest
 
-from monitor_server.domain.entities.metrics import Metric
+from monitor_server.domain.models.metrics import Metric
 
 
 class TestMetricEntity:
@@ -31,12 +31,12 @@ class TestMetricEntity:
         assert not result
 
     def test_equality_returns_true_when_comparing_two_objects_with_same_value(self):
-        other_metric = Metric.from_dict(self.a_metric.as_dict())
+        other_metric = Metric.from_dict(self.a_metric.to_dict())
         assert self.a_metric == other_metric
 
     @pytest.mark.parametrize('field_name', Metric.model_fields)
     def test_equality_returns_false_when_two_objects_differs_only_by(self, field_name):
-        data = self.a_metric.as_dict()
+        data = self.a_metric.to_dict()
         match field_name:
             case 'uid':
                 data[field_name] = uuid.uuid4()

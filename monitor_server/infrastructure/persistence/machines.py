@@ -5,7 +5,7 @@ from sqlalchemy import insert, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from monitor_server.domain.entities.machines import Machine
+from monitor_server.domain.models.machines import Machine
 from monitor_server.infrastructure.orm.errors import ORMError
 from monitor_server.infrastructure.orm.pageable import PageableStatement, PaginatedResponse
 from monitor_server.infrastructure.orm.repositories import InMemoryRepository, SQLRepository
@@ -45,7 +45,7 @@ class ExecutionContextSQLRepository(ExecutionContextRepository, SQLRepository[Ex
 
     def create(self, machine: Machine) -> Machine:
         stmt = insert(ExecutionContext).values(
-            uid=machine.footprint,
+            uid=machine.uid,
             cpu_frequency=machine.cpu_frequency,
             cpu_vendor=machine.cpu_vendor,
             cpu_count=machine.cpu_count,
@@ -61,9 +61,7 @@ class ExecutionContextSQLRepository(ExecutionContextRepository, SQLRepository[Ex
             self.session.execute(stmt)
             self.session.commit()
         except IntegrityError as e:
-            raise EntityAlreadyExists(
-                f'Machine "{machine.footprint}" already exists', Machine, machine.footprint
-            ) from e
+            raise EntityAlreadyExists(f'Machine "{machine.uid.hex}" already exists', Machine, machine.uid.hex) from e
         except SQLAlchemyError as e:
             raise ORMError(str(e)) from e
         return machine
@@ -71,9 +69,8 @@ class ExecutionContextSQLRepository(ExecutionContextRepository, SQLRepository[Ex
     def update(self, machine: Machine) -> Machine:
         stmt = (
             update(self.model)
-            .where(ExecutionContext.uid == machine.footprint)
+            .where(ExecutionContext.uid == machine.uid)
             .values(
-                uid=machine.footprint,
                 cpu_frequency=machine.cpu_frequency,
                 cpu_vendor=machine.cpu_vendor,
                 cpu_count=machine.cpu_count,
@@ -124,15 +121,15 @@ class ExecutionContextInMemRepository(ExecutionContextRepository, InMemoryReposi
         super().__init__()
 
     def create(self, machine: Machine) -> Machine:
-        if machine.footprint in self._data:
-            raise EntityAlreadyExists(f'Machine "{machine.footprint}" already exists', Machine, machine.footprint)
-        self._data[machine.footprint] = t.cast(ExecutionContext, self.model).from_dict(machine.as_dict())
+        if machine.uid.hex in self._data:
+            raise EntityAlreadyExists(f'Machine "{machine.uid.hex}" already exists', Machine, machine.uid.hex)
+        self._data[machine.uid.hex] = t.cast(ExecutionContext, self.model).from_model(machine)
         return machine
 
     def update(self, machine: Machine) -> Machine:
-        if machine.footprint not in self._data:
-            raise EntityNotFound(f'Machine "{machine.footprint}" cannot be found', Machine, machine.footprint)
-        self._data[machine.footprint] = t.cast(ExecutionContext, self.model).from_dict(machine.as_dict())
+        if machine.uid.hex not in self._data:
+            raise EntityNotFound(f'Machine "{machine.uid.hex}" cannot be found', Machine, machine.uid.hex)
+        self._data[machine.uid.hex] = t.cast(ExecutionContext, self.model).from_model(machine)
         return machine
 
     def get(self, uid: str) -> Machine:

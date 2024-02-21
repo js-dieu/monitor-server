@@ -1,6 +1,6 @@
 import typing as t
 
-from monitor_server.domain.entities.abc import Entity
+from monitor_server.domain.models.abc import Entity
 from monitor_server.infrastructure.orm.errors import ORMError
 
 

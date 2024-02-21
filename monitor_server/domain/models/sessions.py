@@ -1,26 +1,13 @@
-import datetime
-import hashlib
 import typing as t
-from functools import cached_property
+from datetime import datetime
 
-from monitor_server.domain.entities.abc import Entity
+from monitor_server.domain.models.abc import Attribute, Entity, Model
 
 
 class MonitorSession(Entity):
-    uid: str
-    start_date: datetime.datetime
+    start_date: datetime
     scm_revision: str
     tags: t.Dict[str, t.Any]
-
-    @cached_property
-    def footprint(self) -> str:
-        if self.uid:
-            return self.uid
-        hr = hashlib.md5()
-        hr.update(self.start_date.isoformat().encode())
-        hr.update(self.scm_revision.encode())
-        hr.update(self.tags.get('description', '').encode())
-        return hr.hexdigest()
 
     def __eq__(self, other: object) -> bool:
         if type(other) is MonitorSession:
@@ -35,3 +22,12 @@ class MonitorSession(Entity):
 
     def __ne__(self, other: object) -> bool:
         return not self == other
+
+
+class NewSessionCreated(Model):
+    uid: str | None = None
+
+
+class SessionListing(Model):
+    data: t.List[MonitorSession]
+    next_page: int | None = Attribute(default=None)

@@ -1,8 +1,7 @@
 import typing as t
 
-from monitor_server.domain.dto.abc import PageableRequest
-from monitor_server.domain.dto.metrics import CreateMetricRequest, MetricsListing, NewMetricCreated
-from monitor_server.domain.entities.metrics import Metric
+from monitor_server.domain.models.abc import PageableRequest
+from monitor_server.domain.models.metrics import Metric, MetricsListing, NewMetricCreated
 from monitor_server.domain.use_cases.abc import UseCase
 from monitor_server.domain.use_cases.exceptions import InvalidMetric, MetricAlreadyExists, UseCaseError
 from monitor_server.infrastructure.orm.pageable import PageableStatement
@@ -11,12 +10,12 @@ from monitor_server.infrastructure.persistence.metrics import MetricRepository
 from monitor_server.infrastructure.persistence.services import MonitoringMetricsService
 
 
-class AddMetric(UseCase[CreateMetricRequest, NewMetricCreated]):
+class AddMetric(UseCase[Metric, NewMetricCreated]):
     def __init__(self, metric_service: MonitoringMetricsService) -> None:
         super().__init__()
         self._metric_svc = metric_service
 
-    def execute(self, input_dto: CreateMetricRequest) -> NewMetricCreated:
+    def execute(self, input_dto: Metric) -> NewMetricCreated:
         try:
             metric = t.cast(Metric, Metric.from_dict(input_dto.to_dict()))
             self._metric_svc.add_metric(metric)

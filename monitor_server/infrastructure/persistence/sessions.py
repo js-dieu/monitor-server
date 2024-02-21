@@ -4,7 +4,7 @@ import typing as t
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.sql import insert, select, update
 
-from monitor_server.domain.entities.sessions import MonitorSession
+from monitor_server.domain.models.sessions import MonitorSession
 from monitor_server.infrastructure.orm.errors import ORMError
 from monitor_server.infrastructure.orm.pageable import PageableStatement, PaginatedResponse
 from monitor_server.infrastructure.orm.repositories import InMemoryRepository, SQLRepository
@@ -44,7 +44,7 @@ class SessionSQLRepository(SessionRepository, SQLRepository[Session]):
             self.session.execute(stmt)
             self.session.commit()
         except IntegrityError as e:
-            raise EntityAlreadyExists(f'Session "{item.uid}" already exists', MonitorSession, item.uid) from e
+            raise EntityAlreadyExists(f'Session "{item.uid.hex}" already exists', MonitorSession, item.uid.hex) from e
         except SQLAlchemyError as e:
             raise ORMError(str(e)) from e
         return item
@@ -100,17 +100,17 @@ class SessionInMemRepository(SessionRepository, InMemoryRepository[Session]):
         return MonitorSession(uid=row.uid, scm_revision=row.scm_id, start_date=row.run_date, tags=row.description)
 
     def create(self, item: MonitorSession) -> MonitorSession:
-        if item.uid in self._data:
-            raise EntityAlreadyExists(f'Session "{item.uid}" already exists', MonitorSession, item.uid)
-        self._data[item.uid] = Session(
+        if item.uid.hex in self._data:
+            raise EntityAlreadyExists(f'Session "{item.uid.hex}" already exists', MonitorSession, item.uid.hex)
+        self._data[item.uid.hex] = Session(
             uid=item.uid, description=item.tags, run_date=item.start_date, scm_id=item.scm_revision
         )
         return item
 
     def update(self, item: MonitorSession) -> MonitorSession:
-        if item.uid not in self._data:
-            raise EntityNotFound(f'Session "{item.uid}" cannot be found', MonitorSession, item.uid)
-        self._data[item.uid] = Session(
+        if item.uid.hex not in self._data:
+            raise EntityNotFound(f'Session "{item.uid.hex}" cannot be found', MonitorSession, item.uid.hex)
+        self._data[item.uid.hex] = Session(
             uid=item.uid, description=item.tags, run_date=item.start_date, scm_id=item.scm_revision
         )
         return item

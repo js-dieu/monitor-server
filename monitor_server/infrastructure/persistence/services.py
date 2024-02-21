@@ -2,9 +2,9 @@ import abc
 import typing as t
 from contextlib import suppress
 
-from monitor_server.domain.entities.machines import Machine
-from monitor_server.domain.entities.metrics import Metric
-from monitor_server.domain.entities.sessions import MonitorSession
+from monitor_server.domain.models.machines import Machine
+from monitor_server.domain.models.metrics import Metric
+from monitor_server.domain.models.sessions import MonitorSession
 from monitor_server.infrastructure.orm.engine import ORMEngine
 from monitor_server.infrastructure.persistence.exceptions import (
     EntityAlreadyExists,

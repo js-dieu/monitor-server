@@ -2,7 +2,7 @@ import typing as t
 
 import pytest
 
-from monitor_server.domain.entities.machines import Machine
+from monitor_server.domain.models.machines import Machine
 from monitor_server.infrastructure.orm.pageable import PageableStatement, PaginatedResponse
 from monitor_server.infrastructure.persistence.exceptions import EntityAlreadyExists, EntityNotFound
 from monitor_server.infrastructure.persistence.machines import ExecutionContextRepository
@@ -20,14 +20,14 @@ class TestExecutionContextRepository:
     ):
         execution_context_repository.create(a_machine)
 
-        with pytest.raises(EntityAlreadyExists, match=f'Machine "{a_machine.uid}" already exists'):
+        with pytest.raises(EntityAlreadyExists, match=f'Machine "{a_machine.uid.hex}" already exists'):
             execution_context_repository.create(a_machine)
 
     def test_it_returns_a_machine_when_querying_a_known_uid(
         self, execution_context_repository: ExecutionContextRepository, a_machine: Machine
     ):
         execution_context_repository.create(a_machine)
-        assert execution_context_repository.get(a_machine.uid)
+        assert execution_context_repository.get(a_machine.uid.hex)
 
     def test_it_raises_entity_not_found_when_querying_an_unknown_context(
         self, execution_context_repository: ExecutionContextRepository

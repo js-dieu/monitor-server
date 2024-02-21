@@ -2,8 +2,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from monitor_server.domain.dto.abc import PageableRequest
-from monitor_server.domain.dto.sessions import CreateSession, NewSessionCreated, SessionListing
+from monitor_server.domain.models.abc import PageableRequest
+from monitor_server.domain.models.sessions import MonitorSession, NewSessionCreated, SessionListing
 from monitor_server.domain.use_cases.exceptions import SessionAlreadyExists
 from monitor_server.domain.use_cases.sessions.crud import AddSession, ListSession
 from monitor_server.infrastructure.persistence.sessions import SessionRepository
@@ -13,36 +13,25 @@ from monitor_server.tests.sdk.persistence.generators import MonitorSessionGenera
 class TestAddSession:
     def test_it_return_ok_when_the_session_is_valid(self, session_repository: SessionRepository):
         use_case = AddSession(session_repository)
-        assert use_case.execute(
-            CreateSession(
-                uid='abcd',
-                scm_revision='scm_revision',
-                start_date=datetime(2024, 1, 31, 18, 24, 54, 123456, tzinfo=UTC),
-                tags={'description': 'a description', 'extras': 'information'},
-            )
-        ) == NewSessionCreated(uid='abcd')
+        a_valid_session = MonitorSession(
+            scm_revision='scm_revision',
+            start_date=datetime(2024, 1, 31, 18, 24, 54, 123456, tzinfo=UTC),
+            tags={'description': 'a description', 'extras': 'information'},
+        )
+        assert use_case.execute(a_valid_session) == NewSessionCreated(uid=a_valid_session.uid.hex)
 
-    def test_it_raises_session_already_exists_when_the_session_already_exists(
+    def test_it_raises_session_already_exists_when_adding_twice_the_same_session(
         self, session_repository: SessionRepository
     ):
         use_case = AddSession(session_repository)
-        use_case.execute(
-            CreateSession(
-                uid='abcd',
-                scm_revision='scm_revision',
-                start_date=datetime(2024, 1, 31, 18, 24, 54, 123456, tzinfo=UTC),
-                tags={'description': 'a description', 'extras': 'information'},
-            )
+        a_session = MonitorSession(
+            scm_revision='scm_revision',
+            start_date=datetime(2024, 1, 31, 18, 24, 54, 123456, tzinfo=UTC),
+            tags={'description': 'a description', 'extras': 'information'},
         )
-        with pytest.raises(SessionAlreadyExists, match='Session "abcd" already exists'):
-            use_case.execute(
-                CreateSession(
-                    uid='abcd',
-                    scm_revision='scm_revision',
-                    start_date=datetime(2024, 1, 31, 18, 24, 54, 123456, tzinfo=UTC),
-                    tags={'description': 'a description', 'extras': 'information'},
-                )
-            )
+        use_case.execute(a_session)
+        with pytest.raises(SessionAlreadyExists, match=f'Session "{a_session.uid.hex}" already exists'):
+            use_case.execute(a_session)
 
 
 class TestListSessions:

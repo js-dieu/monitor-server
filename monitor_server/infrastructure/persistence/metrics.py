@@ -4,10 +4,10 @@ import typing as t
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.sql import insert, select, update
 
-from monitor_server.domain.entities.abc import Entity
-from monitor_server.domain.entities.machines import Machine
-from monitor_server.domain.entities.metrics import Metric
-from monitor_server.domain.entities.sessions import MonitorSession
+from monitor_server.domain.models.abc import Entity
+from monitor_server.domain.models.machines import Machine
+from monitor_server.domain.models.metrics import Metric
+from monitor_server.domain.models.sessions import MonitorSession
 from monitor_server.infrastructure.orm.errors import ORMError
 from monitor_server.infrastructure.orm.pageable import PageableStatement, PaginatedResponse
 from monitor_server.infrastructure.orm.repositories import InMemoryRepository, SQLRepository
@@ -45,7 +45,7 @@ class MetricRepository:
 class MetricSQLRepository(MetricRepository, SQLRepository[TestMetric]):
     def create(self, item: Metric) -> Metric:
         stmt = insert(TestMetric).values(
-            uid=item.uid,
+            uid=item.uid.hex,
             sid=item.session_id,
             xid=item.node_id,
             item_start_time=item.item_start_time,

@@ -1,10 +1,10 @@
 import pathlib
 import typing as t
 
-from monitor_server.domain.entities.abc import Entity
-from monitor_server.domain.entities.machines import Machine
-from monitor_server.domain.entities.metrics import Metric
-from monitor_server.domain.entities.sessions import MonitorSession
+from monitor_server.domain.models.abc import Entity
+from monitor_server.domain.models.machines import Machine
+from monitor_server.domain.models.metrics import Metric
+from monitor_server.domain.models.sessions import MonitorSession
 from monitor_server.infrastructure.orm.declarative import ORMModel
 from monitor_server.infrastructure.persistence.models import (
     ExecutionContext as ORMMachine,

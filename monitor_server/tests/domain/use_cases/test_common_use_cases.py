@@ -1,6 +1,6 @@
 import datetime
 
-from monitor_server.domain.dto.common import CountInfo
+from monitor_server.domain.models.common import CountInfo
 from monitor_server.domain.use_cases.common import CollectInfoUseCase
 from monitor_server.infrastructure.persistence.services import MonitoringMetricsService
 from monitor_server.tests.sdk.persistence.generators import MachineGenerator, MetricGenerator, MonitorSessionGenerator
@@ -21,8 +21,8 @@ class TestCollectInfoUseCase:
             metrics_service.add_machine(machine)
         metrics_generator = MetricGenerator(
             start_date=a_start_time,
-            session_uid_cb=lambda step: sessions[step % 5].uid,
-            machine_uid_cb=lambda step: machines[step % 2].uid,
+            session_uid_cb=lambda step: sessions[step % 5].uid.hex,
+            machine_uid_cb=lambda step: machines[step % 2].uid.hex,
         )
         metrics = [metrics_generator() for _ in range(50)]
         metrics_service.add_metrics(metrics)

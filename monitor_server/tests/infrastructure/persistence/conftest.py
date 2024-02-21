@@ -4,15 +4,14 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from monitor_server.domain.entities.machines import Machine
-from monitor_server.domain.entities.metrics import Metric
-from monitor_server.domain.entities.sessions import MonitorSession
+from monitor_server.domain.models.machines import Machine
+from monitor_server.domain.models.metrics import Metric
+from monitor_server.domain.models.sessions import MonitorSession
 
 
 @pytest.fixture()
 def a_machine() -> Machine:
     return Machine(
-        uid='dcba',
         cpu_frequency=1024,
         cpu_vendor='cpu_vendor',
         cpu_count=32,
@@ -34,7 +33,7 @@ def a_start_time() -> datetime:
 @pytest.fixture()
 def a_session(a_start_time) -> MonitorSession:
     return MonitorSession(
-        uid='abcd',
+        uid=uuid.uuid4(),
         scm_revision='scm_revision',
         start_date=a_start_time,
         tags={'description': 'a description', 'extras': 'information'},
@@ -45,8 +44,8 @@ def a_session(a_start_time) -> MonitorSession:
 def a_valid_metric(a_machine, a_session) -> Metric:
     return Metric(
         uid=uuid.uuid4(),
-        session_id=a_session.uid,
-        node_id=a_machine.uid,
+        session_id=a_session.uid.hex,
+        node_id=a_machine.uid.hex,
         item_start_time=a_session.start_date + timedelta(seconds=1),
         item_path='tests.this.item',
         item='item',

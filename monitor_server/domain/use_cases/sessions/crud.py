@@ -1,8 +1,7 @@
 import typing as t
 
-from monitor_server.domain.dto.abc import PageableRequest
-from monitor_server.domain.dto.sessions import CreateSession, NewSessionCreated, SessionListing
-from monitor_server.domain.entities.sessions import MonitorSession
+from monitor_server.domain.models.abc import PageableRequest
+from monitor_server.domain.models.sessions import MonitorSession, NewSessionCreated, SessionListing
 from monitor_server.domain.use_cases.abc import UseCase
 from monitor_server.domain.use_cases.exceptions import SessionAlreadyExists, UseCaseError
 from monitor_server.infrastructure.orm.errors import ORMError
@@ -11,16 +10,16 @@ from monitor_server.infrastructure.persistence.exceptions import EntityAlreadyEx
 from monitor_server.infrastructure.persistence.sessions import SessionRepository
 
 
-class AddSession(UseCase[CreateSession, NewSessionCreated]):
+class AddSession(UseCase[MonitorSession, NewSessionCreated]):
     def __init__(self, session_repo: SessionRepository) -> None:
         super().__init__()
         self._session_repo = session_repo
 
-    def execute(self, input_dto: CreateSession) -> NewSessionCreated:
+    def execute(self, input_dto: MonitorSession) -> NewSessionCreated:
         a_session = t.cast(MonitorSession, MonitorSession.from_dict(input_dto.to_dict()))
         try:
             self._session_repo.create(a_session)
-            return NewSessionCreated(uid=a_session.uid)
+            return NewSessionCreated(uid=a_session.uid.hex)
         except EntityAlreadyExists as e:
             raise SessionAlreadyExists(str(e)) from e
         except ORMError as e:
