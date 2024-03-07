@@ -36,7 +36,7 @@ class TestMonitoringMetricsService:
         a_machine: Machine,
     ):
         metrics_service.add_machine(a_machine)
-        msg = f'Session {a_session.uid.hex} cannot be found. Metric {a_valid_metric.uid.hex} cannot be inserted'
+        msg = f'Session {a_session.uid.hex} cannot be found. Metric {a_valid_metric.uid.hex} cannot be processed'
         with pytest.raises(LinkedEntityMissing, match=msg):
             metrics_service.add_metric(a_valid_metric)
 
@@ -48,10 +48,7 @@ class TestMonitoringMetricsService:
         a_machine: Machine,
     ):
         metrics_service.add_session(a_session)
-        msg = (
-            f'Execution Context {a_machine.uid.hex} cannot be found.'
-            f' Metric {a_valid_metric.uid.hex} cannot be inserted'
-        )
+        msg = f'Machine {a_machine.uid.hex} cannot be found.' f' Metric {a_valid_metric.uid.hex} cannot be processed'
         with pytest.raises(LinkedEntityMissing, match=msg):
             metrics_service.add_metric(a_valid_metric)
 
@@ -84,7 +81,7 @@ class TestMonitoringMetricsService:
         generator = MetricGenerator(a_session.start_date, get_session_id, get_machine_id)
         metrics = [generator() for _ in range(20)]
 
-        msg = f'Session {metrics[9].session_id} cannot be found. Metric {metrics[9].uid.hex} cannot be inserted'
+        msg = f'Session {metrics[9].session_id} cannot be found. Metric {metrics[9].uid.hex} cannot be processed'
         with pytest.raises(LinkedEntityMissing, match=msg):
             metrics_service.add_metrics(metrics, session=a_session, machine=a_machine)
 
@@ -106,7 +103,7 @@ class TestMonitoringMetricsService:
         generator = MetricGenerator(a_session.start_date, get_session_id, get_machine_id)
         metrics = [generator() for _ in range(20)]
 
-        msg = f'Execution Context {metrics[9].node_id} cannot be found. Metric {metrics[9].uid.hex} cannot be inserted'
+        msg = f'Machine {metrics[9].node_id} cannot be found. Metric {metrics[9].uid.hex} cannot be processed'
         with pytest.raises(LinkedEntityMissing, match=msg):
             metrics_service.add_metrics(metrics, session=a_session, machine=a_machine)
 

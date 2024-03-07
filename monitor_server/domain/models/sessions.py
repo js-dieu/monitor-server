@@ -9,6 +9,10 @@ class MonitorSession(Entity):
     scm_revision: str
     tags: t.Dict[str, t.Any]
 
+    @classmethod
+    def entity_name(cls) -> str:
+        return 'Session'
+
     def __eq__(self, other: object) -> bool:
         if type(other) is MonitorSession:
             other_session = t.cast(MonitorSession, other)

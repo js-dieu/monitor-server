@@ -1,8 +1,10 @@
 import typing as t
 import uuid
+from datetime import timedelta
 
 import pytest
 
+from monitor_server.domain.models.aggregates import ValidationSuite
 from monitor_server.domain.models.machines import Machine
 from monitor_server.domain.models.metrics import Metric
 from monitor_server.domain.models.sessions import MonitorSession
@@ -14,7 +16,8 @@ from monitor_server.infrastructure.persistence.exceptions import (
 )
 from monitor_server.infrastructure.persistence.metrics import MetricRepository
 from monitor_server.infrastructure.persistence.services import MonitoringMetricsService
-from monitor_server.tests.sdk.persistence.generators import MetricGenerator
+from monitor_server.tests.sdk.persistence.generators import MetricGenerator, MonitorSessionGenerator
+from monitor_server.tests.sdk.persistence.views import EntityView
 
 
 class TestMetricRepository:
@@ -39,7 +42,7 @@ class TestMetricRepository:
         a_valid_metric: Metric,
     ):
         metrics_sql_service.add_machine(a_machine)
-        msg = f'Session {a_session.uid.hex} cannot be found. Metric {a_valid_metric.uid.hex} cannot be inserted'
+        msg = f'Session {a_session.uid.hex} cannot be found. Metric {a_valid_metric.uid.hex} cannot be processed'
         with pytest.raises(LinkedEntityMissing, match=msg):
             metrics_sql_service.metric_repository().create(a_valid_metric)
 
@@ -51,10 +54,7 @@ class TestMetricRepository:
         a_valid_metric: Metric,
     ):
         metrics_sql_service.add_session(a_session)
-        msg = (
-            f'Execution Context {a_machine.uid.hex} cannot be found.'
-            f' Metric {a_valid_metric.uid.hex} cannot be inserted'
-        )
+        msg = f'Machine {a_machine.uid.hex} cannot be found.' f' Metric {a_valid_metric.uid.hex} cannot be processed'
         with pytest.raises(LinkedEntityMissing, match=msg):
             metrics_sql_service.metric_repository().create(a_valid_metric)
 
@@ -169,3 +169,30 @@ class TestMetricRepository:
         )
         expected = PaginatedResponse[t.List[Metric]](data=[], next_page=None, page_no=10)
         assert metrics_service.metric_repository().list(PageableStatement(page_no=10, page_size=5)) == expected
+
+    def test_it_lists_no_metrics_attached_to_a_session(
+        self, metrics_service: MonitoringMetricsService, a_machine: Machine
+    ):
+        session_generator = MonitorSessionGenerator()
+        entities: EntityView = EntityView(lambda m: m.session_id)
+        sessions = [session_generator() for _ in range(2)]
+        metrics_generator = MetricGenerator(
+            start_date=sessions[0].start_date + timedelta(minutes=3),
+            session_uid_cb=lambda i: sessions[i % 2].uid.hex,
+            machine_uid_cb=lambda _: a_machine.uid.hex,
+        )
+        for _ in range(20):
+            entities.add(metrics_generator())
+        for session in sessions:
+            metrics_service.add_session(session)
+        metrics_service.add_machine(a_machine)
+        metrics_service.add_metrics(entities.all_())
+        a_result = metrics_service.get_test_suite(sessions[0].uid.hex)
+        expected = ValidationSuite(
+            uid=sessions[0].uid,
+            scm_revision=sessions[0].scm_revision,
+            start_date=sessions[0].start_date,
+            tags=sessions[0].tags,
+            metrics=sorted(entities.view(sessions[0].uid.hex), key=lambda m: m.uid.hex),
+        )
+        assert a_result == expected

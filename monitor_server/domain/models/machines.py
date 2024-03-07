@@ -15,6 +15,10 @@ class Machine(Entity):
     system_info: str
     python_info: str
 
+    @classmethod
+    def entity_name(cls) -> str:
+        return 'Machine'
+
     def __eq__(self, other: object) -> bool:
         if type(other) is not Machine:
             return False

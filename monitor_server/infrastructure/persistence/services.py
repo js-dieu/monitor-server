@@ -2,6 +2,7 @@ import abc
 import typing as t
 from contextlib import suppress
 
+from monitor_server.domain.models.aggregates import ValidationSuite
 from monitor_server.domain.models.machines import Machine
 from monitor_server.domain.models.metrics import Metric
 from monitor_server.domain.models.sessions import MonitorSession
@@ -87,14 +88,22 @@ class MonitoringMetricsService(abc.ABC):
     def count_machines(self) -> int:
         """count the number of machines/execution contexts"""
 
+    @abc.abstractmethod
+    def get_test_suite(self, uid: str) -> ValidationSuite:
+        """Get a session and all affiliated tests"""
 
-class MonitoringMetricsSQLService(MonitoringMetricsService):
-    def __init__(self, orm_engine: ORMEngine) -> None:
+
+class BaseMonitoringMetricsService(MonitoringMetricsService, abc.ABC):
+    def __init__(
+        self,
+        metric_repository: MetricRepository,
+        session_repository: SessionRepository,
+        execution_context_repository: ExecutionContextRepository,
+    ) -> None:
         super().__init__()
-        self._session = orm_engine.session
-        self._metric_repo = MetricSQLRepository(self._session)
-        self._session_repo = SessionSQLRepository(self._session)
-        self._node_repo = ExecutionContextSQLRepository(self._session)
+        self._metric_repo = metric_repository
+        self._session_repo = session_repository
+        self._node_repo = execution_context_repository
 
     def count_sessions(self) -> int:
         return self._session_repo.count()
@@ -147,100 +156,78 @@ class MonitoringMetricsSQLService(MonitoringMetricsService):
     def get_machine(self, uid: str) -> Machine:
         return self._node_repo.get(uid)
 
+    def get_test_suite(self, uid: str) -> ValidationSuite:
+        session = self._session_repo.get(uid)
+        metrics = self._metric_repo.get_all_of(session_id=uid)
+        return ValidationSuite(
+            uid=session.uid,
+            scm_revision=session.scm_revision,
+            tags=session.tags,
+            start_date=session.start_date,
+            metrics=metrics.data,
+        )
+
+
+class MonitoringMetricsSQLService(BaseMonitoringMetricsService):
+    def __init__(self, orm_engine: ORMEngine) -> None:
+        self._session = orm_engine.session
+        super().__init__(
+            MetricSQLRepository(self._session),
+            SessionSQLRepository(self._session),
+            ExecutionContextSQLRepository(self._session),
+        )
+
     def truncate_all(self) -> None:
-        self._node_repo.truncate()
-        self._session_repo.truncate()
-        self._metric_repo.truncate()
+        self.machine_repository().truncate()
+        self.session_repository().truncate()
+        self.metric_repository().truncate()
 
 
-class MonitoringMetricsInMemService(MonitoringMetricsService):
+class MonitoringMetricsInMemService(BaseMonitoringMetricsService):
     def __init__(self) -> None:
-        super().__init__()
-        self._metric_repo = MetricInMemRepository()
-        self._session_repo = SessionInMemRepository()
-        self._node_repo = ExecutionContextInMemRepository()
-
-    def count_sessions(self) -> int:
-        return self._session_repo.count()
-
-    def count_metrics(self) -> int:
-        return self._metric_repo.count()
-
-    def count_machines(self) -> int:
-        return self._node_repo.count()
-
-    def metric_repository(self) -> MetricRepository:
-        return self._metric_repo
-
-    def session_repository(self) -> SessionRepository:
-        return self._session_repo
-
-    def machine_repository(self) -> ExecutionContextRepository:
-        return self._node_repo
-
-    def add_machine(self, machine: Machine) -> Machine:
-        return self._node_repo.create(machine)
+        super().__init__(MetricInMemRepository(), SessionInMemRepository(), ExecutionContextInMemRepository())
 
     def add_metric(self, metric: Metric) -> Metric:
         try:
-            self._node_repo.get(metric.node_id)
-            self._session_repo.get(metric.session_id)
+            self.machine_repository().get(metric.node_id)
+            self.session_repository().get(metric.session_id)
         except EntityNotFound as e:
-            if e.entity_type == 'Machine':
+            if e.entity_typename == Machine.entity_name():
                 raise LinkedEntityMissing(  # noqa: B904
-                    f'Execution Context {e.entity_id} cannot be found. ' f'Metric {metric.uid.hex} cannot be inserted',
-                    Machine,
-                    e.entity_id,
+                    Machine, e.entity_id, Metric, metric.uid.hex
                 )
             raise LinkedEntityMissing(  # noqa: B904
-                f'Session {metric.session_id} cannot be found. Metric {metric.uid.hex} cannot be inserted',
-                MonitorSession,
-                e.entity_id,
+                MonitorSession, e.entity_id, Metric, metric.uid.hex
             )
-        return self._metric_repo.create(metric)
-
-    def add_session(self, session: MonitorSession) -> MonitorSession:
-        return self._session_repo.create(session)
+        return self.metric_repository().create(metric)
 
     def add_metrics(
         self, metrics: t.List[Metric], session: MonitorSession | None = None, machine: Machine | None = None
     ) -> int:
         if session:
-            self._session_repo.create(session)
+            with suppress(EntityAlreadyExists):
+                self.session_repository().create(session)
         if machine:
-            self._node_repo.create(machine)
+            with suppress(EntityAlreadyExists):
+                self.machine_repository().create(machine)
         count = 0
         for metric in metrics:
             try:
-                self._session_repo.get(metric.session_id)
-                self._node_repo.get(metric.node_id)
-                self._metric_repo.create(metric)
+                self.session_repository().get(metric.session_id)
+                self.machine_repository().get(metric.node_id)
+                self.metric_repository().create(metric)
                 count += 1
             except EntityNotFound as e:
-                if e.entity_type == Machine.__name__:
+                if e.entity_typename == Machine.entity_name():
                     raise LinkedEntityMissing(  # noqa: B904
-                        f'Execution Context {metric.node_id} cannot be found.'
-                        f' Metric {metric.uid.hex} cannot be inserted',
-                        Machine,
-                        e.entity_id,
+                        Machine, e.entity_id, Metric, metric.uid.hex
                     )
                 raise LinkedEntityMissing(  # noqa: B904
-                    f'Session {metric.session_id} cannot be found.' f' Metric {metric.uid.hex} cannot be inserted',
-                    MonitorSession,
-                    e.entity_id,
+                    MonitorSession, e.entity_id, Metric, metric.uid.hex
                 )
         return count
 
-    def get_metric(self, uid: str) -> Metric:
-        return self._metric_repo.get(uid)
-
-    def get_session(self, uid: str) -> MonitorSession:
-        return self._session_repo.get(uid)
-
-    def get_machine(self, uid: str) -> Machine:
-        return self._node_repo.get(uid)
-
     def truncate_all(self) -> None:
-        self._node_repo.truncate()
-        self._session_repo.truncate()
-        self._metric_repo.truncate()
+        self.machine_repository().truncate()
+        self.session_repository().truncate()
+        self.metric_repository().truncate()

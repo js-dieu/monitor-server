@@ -21,6 +21,10 @@ class Metric(Entity):
     memory_usage: float
     cpu_usage: float
 
+    @classmethod
+    def entity_name(cls) -> str:
+        return 'Metric'
+
     def __eq__(self, other: object) -> bool:
         if type(other) is Metric:
             other_metric = t.cast(Metric, other)

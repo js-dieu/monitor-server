@@ -20,48 +20,111 @@ AnyModel = t.TypeVar('AnyModel', bound=ORMModel)
 AnyEntity = t.TypeVar('AnyEntity', bound=Entity)
 
 
+def session_model_to_domain(value: ORMSession) -> MonitorSession:
+    return MonitorSession(
+        uid=value.uid,
+        start_date=value.run_date,
+        scm_revision=value.scm_id,
+        tags=value.description,
+    )
+
+
+def session_domain_to_model(value: MonitorSession) -> ORMSession:
+    return ORMSession(
+        uid=value.uid,
+        run_date=value.start_date,
+        scm_id=value.scm_revision,
+        description=value.tags,
+    )
+
+
+def machine_model_to_domain(value: ORMMachine) -> Machine:
+    return Machine(
+        uid=value.uid,
+        cpu_frequency=value.cpu_frequency,
+        cpu_vendor=value.cpu_vendor,
+        cpu_count=value.cpu_count,
+        cpu_type=value.cpu_type,
+        total_ram=value.total_ram,
+        hostname=value.hostname,
+        machine_type=value.machine_type,
+        machine_arch=value.machine_arch,
+        system_info=value.system_info,
+        python_info=value.python_info,
+    )
+
+
+def machine_domain_to_model(value: Machine) -> ORMMachine:
+    return ORMMachine(
+        uid=value.uid,
+        cpu_frequency=value.cpu_frequency,
+        cpu_vendor=value.cpu_vendor,
+        cpu_count=value.cpu_count,
+        cpu_type=value.cpu_type,
+        total_ram=value.total_ram,
+        hostname=value.hostname,
+        machine_type=value.machine_type,
+        machine_arch=value.machine_arch,
+        system_info=value.system_info,
+        python_info=value.python_info,
+    )
+
+
+def metric_model_to_domain(value: ORMMetric) -> Metric:
+    return Metric(
+        uid=value.uid,
+        session_id=value.sid,
+        node_id=value.xid,
+        item_start_time=value.item_start_time,
+        item_path=value.item_path,
+        item=value.item,
+        variant=value.variant,
+        item_path_fs=pathlib.Path(value.item_fs_loc),
+        item_type=value.kind,
+        component=value.component,
+        wall_time=value.wall_time,
+        user_time=value.user_time,
+        kernel_time=value.kernel_time,
+        cpu_usage=value.cpu_usage,
+        memory_usage=value.mem_usage,
+    )
+
+
+def metric_domain_to_model(value: ORMMetric) -> Metric:
+    return Metric(
+        uid=value.uid,
+        session_id=value.sid,
+        node_id=value.xid,
+        item_start_time=value.item_start_time,
+        item_path=value.item_path,
+        item=value.item,
+        variant=value.variant,
+        item_path_fs=pathlib.Path(value.item_fs_loc),
+        item_type=value.kind,
+        component=value.component,
+        wall_time=value.wall_time,
+        user_time=value.user_time,
+        kernel_time=value.kernel_time,
+        cpu_usage=value.cpu_usage,
+        memory_usage=value.mem_usage,
+    )
+
+
 class ORMMapper:
-    @classmethod
-    def orm_session_to_entity(cls, orm_session: ORMSession) -> MonitorSession:
-        return MonitorSession(
-            uid=orm_session.uid,
-            start_date=orm_session.run_date,
-            scm_revision=orm_session.scm_id,
-            tags=orm_session.description,
-        )
+    def __init__(self) -> None:
+        self.domain_map: t.Dict[str, t.Callable[[t.Any], t.Any]] = {
+            ORMMetric.__name__: metric_domain_to_model,
+            ORMMachine.__name__: machine_domain_to_model,
+            ORMSession.__name__: session_domain_to_model,
+        }
+        self.orm_map: t.Dict[str, t.Callable[[t.Any], t.Any]] = {
+            Metric.__name__: metric_model_to_domain,
+            Machine.__name__: machine_model_to_domain,
+            MonitorSession.__name__: session_model_to_domain,
+        }
 
-    @classmethod
-    def orm_execution_context_to_entity(cls, orm_execution_context: ORMMachine) -> Machine:
-        return Machine(
-            uid=orm_execution_context.uid,
-            cpu_frequency=orm_execution_context.cpu_frequency,
-            cpu_vendor=orm_execution_context.cpu_vendor,
-            cpu_count=orm_execution_context.cpu_count,
-            cpu_type=orm_execution_context.cpu_type,
-            total_ram=orm_execution_context.total_ram,
-            hostname=orm_execution_context.hostname,
-            machine_type=orm_execution_context.machine_type,
-            machine_arch=orm_execution_context.machine_arch,
-            system_info=orm_execution_context.system_info,
-            python_info=orm_execution_context.python_info,
-        )
+    def cast_entity(self, value: Entity, as_: t.Type[ORMModel]) -> ORMModel:
+        return self.domain_map[as_.__name__](value)
 
-    @classmethod
-    def orm_test_metric_to_entity(cls, orm_metric: ORMMetric) -> Metric:
-        return Metric(
-            uid=orm_metric.uid,
-            session_id=orm_metric.sid,
-            node_id=orm_metric.xid,
-            item_start_time=orm_metric.item_start_time,
-            item_path=orm_metric.item_path,
-            item=orm_metric.item,
-            variant=orm_metric.variant,
-            item_path_fs=pathlib.Path(orm_metric.item_fs_loc),
-            item_type=orm_metric.kind,
-            component=orm_metric.component,
-            wall_time=orm_metric.wall_time,
-            user_time=orm_metric.user_time,
-            kernel_time=orm_metric.kernel_time,
-            cpu_usage=orm_metric.cpu_usage,
-            memory_usage=orm_metric.mem_usage,
-        )
+    def cast_model(self, value: ORMModel, as_: t.Type[AnyEntity]) -> AnyEntity:
+        return self.orm_map[as_.__name__](value)

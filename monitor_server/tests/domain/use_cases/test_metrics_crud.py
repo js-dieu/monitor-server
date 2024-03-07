@@ -67,7 +67,7 @@ class TestAddMetric:
         metrics_service.add_machine(self.a_machine)
         use_case = AddMetric(metrics_service)
         unknown_session_id = uuid.uuid4().hex
-        msg = f'Session {unknown_session_id} cannot be found. Metric [a-z0-9]* cannot be inserted'
+        msg = f'Session {unknown_session_id} cannot be found.'
         with pytest.raises(InvalidMetric, match=msg):
             use_case.execute(
                 Metric(

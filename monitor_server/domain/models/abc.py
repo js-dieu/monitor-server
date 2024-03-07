@@ -28,3 +28,7 @@ class Entity(Model):
     @classmethod
     def from_dict(cls, data: t.Dict[str, t.Any]) -> 'Entity':
         return cls.model_validate(data)
+
+    @classmethod
+    def entity_name(cls) -> str:
+        return 'Entity'
