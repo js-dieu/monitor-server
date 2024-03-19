@@ -3,15 +3,16 @@ import typing as t
 from abc import ABC, abstractmethod
 from functools import cached_property
 
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
-from sqlalchemy.sql import delete, distinct, func, select, tuple_
+from sqlalchemy.sql import delete, distinct, func, insert, select, tuple_, update
 
 from monitor_server.domain.models.abc import Entity
 from monitor_server.infrastructure.orm.declarative import ORMModel
-from monitor_server.infrastructure.orm.errors import ORMInvalidMapping
+from monitor_server.infrastructure.orm.errors import ORMError, ORMInvalidMapping
 from monitor_server.infrastructure.orm.pageable import PageableStatement, PaginatedResponse
-from monitor_server.infrastructure.persistence.exceptions import EntityNotFound
-from monitor_server.infrastructure.persistence.mapper import ORMMapper
+from monitor_server.infrastructure.orm.presenter import presenter
+from monitor_server.infrastructure.persistence.exceptions import EntityAlreadyExists, EntityNotFound
 
 Model = t.TypeVar('Model', bound=ORMModel)
 DomainObject = t.TypeVar('DomainObject', bound=Entity)
@@ -67,6 +68,10 @@ class CRUDRepositoryABC(ABC, t.Generic[DomainObject, Model]):
         """Get the model with given uid"""
 
     @abstractmethod
+    def delete(self, uid: str) -> None:
+        """Remove a single model given its uid"""
+
+    @abstractmethod
     def list(self, page_info: PageableStatement | None = None) -> PaginatedResponse[t.List[DomainObject]]:
         """List all row using a paging system"""
 
@@ -81,15 +86,39 @@ class CRUDRepositoryABC(ABC, t.Generic[DomainObject, Model]):
 
 class CRUDRepositoryBase(CRUDRepositoryABC[DomainObject, Model], ABC):
     def __init__(self) -> None:
-        self.model = _get_model(self)  # type: ignore[assignment]
-        self.domain = _get_domain(self)  # type: ignore[assignment]
-        self.mapper = ORMMapper()
+        self.model: t.Type[Model] = _get_model(self)  # type: ignore[assignment]
+        self.domain: t.Type[DomainObject] = _get_domain(self)  # type: ignore[assignment]
 
 
-class SQLRepository(CRUDRepositoryBase[DomainObject, Model], ABC):
+class SQLRepository(CRUDRepositoryBase[DomainObject, Model]):
     def __init__(self, session: Session) -> None:
         super().__init__()
         self.session = session
+
+    def update(self, item: DomainObject) -> DomainObject:
+        clause = tuple(
+            c == v for c, v in zip(tuple(getattr(self.model, a) for a in self.primary_key), (item.uid,), strict=False)
+        )
+        args = presenter.to_orm(item, as_=self.model).as_dict()
+        stmt = update(self.model).where(*clause).values(**args)
+        try:
+            self.session.execute(stmt)
+            self.session.commit()
+        except SQLAlchemyError as e:
+            raise ORMError(str(e)) from e
+        return item
+
+    def create(self, item: DomainObject) -> DomainObject:
+        args = presenter.to_orm(item, as_=self.model).as_dict()
+        try:
+            stmt = insert(self.model).values(**args)
+            self.session.execute(stmt)
+            self.session.commit()
+        except IntegrityError as e:
+            raise EntityAlreadyExists(self.domain, item.uid.hex) from e
+        except SQLAlchemyError as e:
+            raise ORMError(str(e)) from e
+        return item
 
     def get(self, uid: str) -> DomainObject:
         where = tuple(
@@ -99,8 +128,21 @@ class SQLRepository(CRUDRepositoryBase[DomainObject, Model], ABC):
         row = q.one_or_none()
         if row is not None:
             row = t.cast(Model, q.one_or_none())
-            return t.cast(DomainObject, self.mapper.cast_model(row, self.domain))
+            return presenter.from_orm(row, as_=self.domain)
         raise EntityNotFound(self.domain, uid)
+
+    def delete(self, uid: str) -> None:
+        where = tuple(
+            c == v for c, v in zip(tuple(getattr(self.model, a) for a in self.primary_key), (uid,), strict=False)
+        )
+        stmt = delete(self.model).where(*where)
+        try:
+            self.session.execute(stmt)
+            self.session.commit()
+        except IntegrityError as e:
+            raise EntityNotFound(self.domain, uid) from e
+        except SQLAlchemyError as e:
+            raise ORMError(str(e)) from e
 
     @cached_property
     def primary_key(self) -> t.Tuple[str, ...]:
@@ -117,13 +159,26 @@ class SQLRepository(CRUDRepositoryBase[DomainObject, Model], ABC):
             )
         ).scalar_one()
 
+    def list(self, page_info: PageableStatement | None = None) -> PaginatedResponse[t.List[DomainObject]]:
+        q = self.session.query(self.model)
+        count = 0
+        if page_info:
+            q = q.limit(page_info.page_size).offset(page_info.offset)
+            count = self.count()
+
+        rows = t.cast(t.Iterable[Model], q.all() or [])
+        values = t.cast(t.List[DomainObject], [presenter.from_orm(row, as_=self.domain) for row in rows])
+        if not page_info:
+            return PaginatedResponse(data=values, page_no=None, next_page=None)
+        return page_info.build_response(values, elements_count=count)
+
     def truncate(self) -> None:
         self.session.execute(delete(self.model))
         self.session.commit()
         self.session.close()
 
 
-class InMemoryRepository(CRUDRepositoryBase[DomainObject, Model], ABC):
+class InMemoryRepository(CRUDRepositoryBase[DomainObject, Model]):
     def __init__(self) -> None:
         super().__init__()
         self._data: t.Dict[t.Any, Model] = {}
@@ -133,3 +188,41 @@ class InMemoryRepository(CRUDRepositoryBase[DomainObject, Model], ABC):
 
     def truncate(self) -> None:
         self._data = {}
+
+    def get(self, uid: str) -> DomainObject:
+        row = self._data.get(uid)
+        if row is None:
+            raise EntityNotFound(self.domain, uid)
+
+        return presenter.from_orm(row, as_=self.domain)
+
+    def create(self, item: DomainObject) -> DomainObject:
+        if item.uid.hex in self._data:
+            raise EntityAlreadyExists(self.domain, item.uid.hex)
+        self._data[item.uid.hex] = presenter.to_orm(item, as_=self.model)
+        return item
+
+    def update(self, item: DomainObject) -> DomainObject:
+        if item.uid.hex not in self._data:
+            raise EntityNotFound(self.domain, item.uid.hex)
+        self._data[item.uid.hex] = presenter.to_orm(item, as_=self.model)
+        return item
+
+    def delete(self, uid: str) -> None:
+        if uid not in self._data:
+            raise EntityNotFound(self.domain, uid)
+        del self._data[uid]
+
+    def list(self, page_info: PageableStatement | None = None) -> PaginatedResponse[t.List[DomainObject]]:
+        ids = sorted(self._data)
+        if page_info is None:
+            return PaginatedResponse(
+                data=[presenter.from_orm(self._data[an_id], as_=self.domain) for an_id in ids],
+                page_no=None,
+                next_page=None,
+            )
+        page = slice(page_info.offset, page_info.offset + page_info.page_size)
+        return page_info.build_response(
+            data=[presenter.from_orm(self._data[an_id], as_=self.domain) for an_id in ids[page]],
+            elements_count=self.count(),
+        )

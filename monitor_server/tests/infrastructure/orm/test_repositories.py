@@ -39,6 +39,9 @@ class TestAbstractRepository:
             def count(self) -> int:
                 return 0
 
+            def delete(self, uid: str) -> None:
+                return None
+
             def truncate(self) -> None:
                 return None
 
@@ -55,6 +58,9 @@ class TestAbstractRepository:
                 return None
 
             def get(self, uid: str) -> t.Any:
+                return None
+
+            def delete(self, uid: str) -> None:
                 return None
 
             def list(self, page_info: PageableStatement | None = None) -> PaginatedResponse[t.List[t.Any]]:
@@ -81,6 +87,9 @@ class TestAbstractRepository:
             def get(self, uid: str) -> t.Any:
                 return None
 
+            def delete(self, uid: str) -> None:
+                return None
+
             def list(self, page_info: PageableStatement | None = None) -> PaginatedResponse[t.List[t.Any]]:
                 return PaginatedResponse(next_page=None, page_no=0, data=[])
 
@@ -98,6 +107,9 @@ class TestAbstractRepository:
             """A dummy repository"""
 
             def create(self, item: t.Any) -> t.Any:
+                return None
+
+            def delete(self, uid: str) -> None:
                 return None
 
             def update(self, machine: t.Any) -> t.Any:
